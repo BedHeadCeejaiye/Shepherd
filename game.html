@@ -112,7 +112,7 @@ let shakeTime = 0;
 let glitchTimer = 0;
 let flickerFrames = 0;
 let watcherStunTimer = 0;
-let flickerCooldown = 0; // Enforces spacing between subliminal flickers
+let flickerCooldown = 0;
 
 const player = {
   x: 50,
@@ -348,11 +348,11 @@ function update() {
   if (flickerCooldown > 0) flickerCooldown--;
   if (gameOver) return;
 
-  // Rare, fairly random subliminal flicker with a cooldown after 8+ fruits
+  // Rare, intense subliminal flicker after 8+ fruits (8 frames duration, ~6 second cooldown)
   if (!isUpsideDown && score >= 8 && flickerFrames === 0 && flickerCooldown === 0) {
     if (Math.random() < 0.0008) {
-      flickerFrames = 2;       // Quick 2-frame flash
-      flickerCooldown = 240;   // ~4 second cooldown before another can trigger
+      flickerFrames = 8;
+      flickerCooldown = 360;
     }
   }
 
@@ -532,23 +532,28 @@ function draw() {
   if (!isUpsideDown) {
     const isFlickering = flickerFrames > 0;
 
-    ctx.fillStyle = isFlickering ? "#140404" : "#558b2f";
+    // Deep, bruised crimson-black flash during flicker
+    ctx.fillStyle = isFlickering ? "#1c0303" : "#558b2f";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = isFlickering ? "#ff1744" : "#fff59d";
+    ctx.fillStyle = isFlickering ? "#ff0000" : "#fff59d";
     for (let i = 0; i < 10; i++) {
       ctx.fillRect((i * 59) % 580, (i * 83) % 380, 4, 4);
     }
 
     if (isFlickering) {
+      // Draw glaring red eye / corrupted apple
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
-      ctx.ellipse(item.x + 7, item.y + 7, 10, 6, 0, 0, Math.PI * 2);
+      ctx.ellipse(item.x + 7, item.y + 7, 12, 7, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#ff0000";
       ctx.beginPath();
-      ctx.arc(item.x + 7, item.y + 7, 3.5, 0, Math.PI * 2);
+      ctx.arc(item.x + 7, item.y + 7, 4, 0, Math.PI * 2);
       ctx.fill();
+      
+      // Sudden physical mini-shake impact during the flicker frame
+      ctx.translate((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
     } else {
       ctx.fillStyle = "#ffd700";
       ctx.beginPath();
