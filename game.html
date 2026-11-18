@@ -229,14 +229,11 @@ function checkCollision(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 }
 
-// Standard tree drawing function used for both decoys and the trigger tree
 function drawTree(x, y) {
-  ctx.fillStyle = "#2e1c0c";
-  ctx.fillRect(x + 15, y + 20, 15, 25);
-  ctx.fillStyle = "#1b4d1b";
-  ctx.beginPath();
-  ctx.arc(x + 22, y + 15, 22, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.fillStyle = "#2e1c0c"; // trunk
+  ctx.fillRect(x + 16, y + 22, 13, 20);
+  ctx.fillStyle = "#1b4d1b"; // tree top
+  ctx.fillRect(x + 5, y + 5, 35, 22);
 }
 
 function update() {
@@ -359,11 +356,7 @@ function draw() {
     ctx.fillStyle = "#558b2f";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Subtle faded grass patch around the trigger tree (the only faint hint left)
-    ctx.fillStyle = "#4a7527";
-    ctx.beginPath();
-    ctx.arc(anomaly.x + 22, anomaly.y + 20, 35, 0, Math.PI * 2);
-    ctx.fill();
+    // (Hint circle removed entirely from here!)
 
     ctx.fillStyle = "#fff59d";
     for (let i = 0; i < 10; i++) {
@@ -385,7 +378,7 @@ function draw() {
       drawTree(tree.x, tree.y);
     }
 
-    // Draw the Trigger Tree (now completely identical to the decoys visually)
+    // Draw the Trigger Tree (now completely indistinguishable from the rest)
     drawTree(anomaly.x, anomaly.y);
 
   } else {
