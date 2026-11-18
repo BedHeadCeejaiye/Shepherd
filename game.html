@@ -45,7 +45,7 @@
     border-left: 4px solid #558b2f;
     font-size: 14px;
     line-height: 1.4;
-    transition: all 0.5s ease;
+    transition: all 0.3s ease;
   }
   /* Developer Console Overlay */
   #console-overlay {
@@ -108,7 +108,7 @@
   
   <!-- F1 Console Terminal -->
   <div id="console-overlay">
-    <div id="console-log">SYS_CONSOLE v1.0 [EDEN_ABYSS KERNEL]
+    <div id="console-log">SYS_CONSOLE v1.1 [EDEN_ABYSS KERNEL]
 Type 'help' for available administrative commands. Press [F1] to close.
 --------------------------------------------------</div>
     <div id="console-input-line">
@@ -135,6 +135,7 @@ const consoleLog = document.getElementById("console-log");
 const consoleInput = document.getElementById("console-input");
 
 let consoleOpen = false;
+let godMode = false;
 
 canvas.focus();
 canvas.addEventListener("click", () => {
@@ -183,6 +184,12 @@ let watcherStunTimer = 0;
 let flickerCooldown = 0;
 let hasFlickeredBefore = false;
 
+// Paranoia State Variables
+let idleFrames = 0;
+let isWhispering = false;
+let savedLoreText = '"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."';
+let phantomItem = { x: 0, y: 0, active: false, timer: 0 };
+
 const player = {
   x: 50,
   y: 200,
@@ -229,7 +236,7 @@ const watcher = {
   x: 550,
   y: 50,
   size: 28,
-  baseSpeed: 1.55 // High base speed
+  baseSpeed: 1.55
 };
 
 const abyssLore = [
@@ -244,6 +251,29 @@ const abyssLore = [
   "THE THRONE IS EMPTY. YOU HAVE BECOME THE WATCHER."
 ];
 
+const edenWhispers = [
+  "Why do you stand so still? The eastern tree is watching.",
+  "Something is breathing beneath the soil.",
+  "You are not alone in the pasture.",
+  "Do not look too long at the shadows.",
+  "He knows you are hesitating."
+];
+
+const abyssWhispers = [
+  "IT SEES YOU STANDING THERE.",
+  "STOP HESITATING. RUN.",
+  "IT IS ALREADY BEHIND YOU.",
+  "YOUR FOOTSTEPS ECHO IN THE DARK.",
+  "THE PIT DOES NOT FORGIVE STILLNESS."
+];
+
+function setLore(text) {
+  savedLoreText = text;
+  if (!isWhispering) {
+    loreBox.innerText = text;
+  }
+}
+
 // Console Command Parser
 function logToConsole(text) {
   consoleLog.innerText += "\n" + text;
@@ -251,35 +281,81 @@ function logToConsole(text) {
 }
 
 function processCommand(cmd) {
-  const cleanCmd = cmd.trim().toLowerCase();
-  logToConsole(`> ${cleanCmd}`);
+  const parts = cmd.trim().toLowerCase().split(" ");
+  const baseCmd = parts[0];
+  logToConsole(`> ${cmd.trim()}`);
 
-  if (cleanCmd === "help") {
-    logToConsole("AVAILABLE COMMANDS:\n - reset: Wipes all unlocked endings in localStorage\n - abyss: Instantly triggers the standard Abyss realm\n - trueabyss: Instantly triggers the Bottomless Pit\n - unlockall: Instantly unlocks all 4 endings\n - clear: Clears console terminal log");
-  } else if (cleanCmd === "reset") {
+  if (baseCmd === "help") {
+    logToConsole(
+      "AVAILABLE COMMANDS:\n" +
+      " - reset: Wipes all unlocked endings in localStorage\n" +
+      " - abyss: Instantly triggers the standard Abyss realm\n" +
+      " - trueabyss: Instantly triggers the Bottomless Pit\n" +
+      " - unlockall: Instantly unlocks all 4 endings\n" +
+      " - godmode: Toggles invulnerability against The Watcher\n" +
+      " - speed <val>: Sets player speed (default: 2.05)\n" +
+      " - teleport: Warps player to a safe random location\n" +
+      " - flicker: Forces an immediate subliminal flicker\n" +
+      " - clear: Clears console terminal log"
+    );
+  } else if (baseCmd === "reset") {
     localStorage.removeItem("eden_abyss_endings");
     unlocked = { eden: false, death: false, revelation: false, trueEnd: false };
     updateSigilHUD();
     resetGame();
     logToConsole("[SYS]: All endings purged. LocalStorage cleared.");
-  } else if (cleanCmd === "abyss") {
+  } else if (baseCmd === "abyss") {
     triggerUpsideDown(false);
     logToConsole("[SYS]: Forced entry into Sheol // The Abyss.");
     toggleConsole();
-  } else if (cleanCmd === "trueabyss") {
+  } else if (baseCmd === "trueabyss") {
     triggerUpsideDown(true);
     logToConsole("[SYS]: Forced entry into The Bottomless Pit.");
     toggleConsole();
-  } else if (cleanCmd === "unlockall") {
+  } else if (baseCmd === "unlockall") {
     unlocked = { eden: true, death: true, revelation: true, trueEnd: true };
     localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
     updateSigilHUD();
     forbiddenFruit.active = true;
     logToConsole("[SYS]: All endings unlocked. Forbidden fruit spawned.");
-  } else if (cleanCmd === "clear") {
-    consoleLog.innerText = "SYS_CONSOLE v1.0 [EDEN_ABYSS KERNEL]";
-  } else if (cleanCmd !== "") {
-    logToConsole(`[ERROR]: Unknown command '${cleanCmd}'. Type 'help' for options.`);
+  } else if (baseCmd === "godmode") {
+    godMode = !godMode;
+    logToConsole(`[SYS]: Godmode is now ${godMode ? "ENABLED" : "DISABLED"}.`);
+  } else if (baseCmd === "speed") {
+    const val = parseFloat(parts[1]);
+    if (!isNaN(val) && val > 0 && val <= 15) {
+      player.speed = val;
+      logToConsole(`[SYS]: Player speed set to ${val}.`);
+    } else {
+      logToConsole("[ERROR]: Usage: speed <number between 0.1 and 15>");
+    }
+  } else if (baseCmd === "teleport") {
+    let valid = false;
+    while (!valid) {
+      player.x = 40 + Math.random() * (canvas.width - 100);
+      player.y = 40 + Math.random() * (canvas.height - 80);
+      valid = true;
+      if (!isUpsideDown) {
+        for (const tree of forestTrees) {
+          if (checkCollision(player.x, player.y, player.size, player.size, tree.x, tree.y, tree.width, tree.height)) {
+            valid = false;
+            break;
+          }
+        }
+      } else if (Math.hypot(player.x - watcher.x, player.y - watcher.y) < 180) {
+        valid = false;
+      }
+    }
+    logToConsole(`[SYS]: Teleported player to (${Math.round(player.x)}, ${Math.round(player.y)}).`);
+    toggleConsole();
+  } else if (baseCmd === "flicker") {
+    flickerFrames = 10;
+    logToConsole("[SYS]: Forced subliminal flicker.");
+    toggleConsole();
+  } else if (baseCmd === "clear") {
+    consoleLog.innerText = "SYS_CONSOLE v1.1 [EDEN_ABYSS KERNEL]";
+  } else if (baseCmd !== "") {
+    logToConsole(`[ERROR]: Unknown command '${baseCmd}'. Type 'help' for options.`);
   }
   consoleInput.value = "";
 }
@@ -353,6 +429,17 @@ function spawnItem() {
   }
 }
 
+function spawnPhantomItem() {
+  phantomItem.x = 50 + Math.random() * (canvas.width - 120);
+  phantomItem.y = 50 + Math.random() * (canvas.height - 100);
+  // Make sure it spawns far enough from the real item and the player
+  if (Math.hypot(phantomItem.x - item.x, phantomItem.y - item.y) > 120 &&
+      Math.hypot(phantomItem.x - player.x, phantomItem.y - player.y) > 100) {
+    phantomItem.active = true;
+    phantomItem.timer = 320; // Lingers for ~5.3 seconds unless approached
+  }
+}
+
 function triggerUpsideDown(trueMode = false) {
   isUpsideDown = true;
   isTrueAbyss = trueMode;
@@ -360,11 +447,14 @@ function triggerUpsideDown(trueMode = false) {
   shakeTime = trueMode ? 70 : 45;
   watcherStunTimer = 45;
   score = 0;
+  idleFrames = 0;
+  isWhispering = false;
+  phantomItem.active = false;
   player.x = 60;
   player.y = 200;
   watcher.x = 540;
   watcher.y = 200;
-  watcher.baseSpeed = trueMode ? 1.65 : 1.55; // Fast initial Abyss speeds
+  watcher.baseSpeed = trueMode ? 1.65 : 1.55;
   
   realmText.innerText = trueMode ? "REALM: THE BOTTOMLESS PIT" : "REALM: SHEOL // THE ABYSS";
   realmText.style.color = "#ff2a2a";
@@ -374,9 +464,9 @@ function triggerUpsideDown(trueMode = false) {
   loreBox.style.background = "#1a0505";
   loreBox.style.borderLeft = "4px solid #ff0000";
   loreBox.style.color = "#ff9999";
-  loreBox.innerText = trueMode
+  setLore(trueMode
     ? "YOU CONSUMED THE CORE OF KNOWLEDGE. THE ABYSS KNOWS YOUR NAME."
-    : "YOU TOUCHED THE FORBIDDEN ROOT. THE SKY HAS ROLLED UP LIKE A SCROLL.";
+    : "YOU TOUCHED THE FORBIDDEN ROOT. THE SKY HAS ROLLED UP LIKE A SCROLL.");
   spawnItem();
 }
 
@@ -391,11 +481,11 @@ function handleAnomalyTouch() {
   player.y += (dy / dist) * 24;
 
   if (forbiddenTouches === 1) {
-    loreBox.innerText = "The bark of this particular tree is unnaturally cold to the touch...";
+    setLore("The bark of this particular tree is unnaturally cold to the touch...");
   } else if (forbiddenTouches === 2) {
-    loreBox.innerText = "A drop of black sap leaks from the grain. Something feels wrong.";
+    setLore("A drop of black sap leaks from the grain. Something feels wrong.");
   } else if (forbiddenTouches === 3) {
-    loreBox.innerText = "You hear faint whispers echoing up through the roots... Turn back.";
+    setLore("You hear faint whispers echoing up through the roots... Turn back.");
   } else if (forbiddenTouches >= 4) {
     triggerUpsideDown(false);
   }
@@ -417,6 +507,9 @@ function resetGame() {
   watcherStunTimer = 0;
   flickerCooldown = 0;
   hasFlickeredBefore = false;
+  idleFrames = 0;
+  isWhispering = false;
+  phantomItem.active = false;
   player.x = 50;
   player.y = 200;
   watcher.baseSpeed = 1.55;
@@ -434,9 +527,9 @@ function resetGame() {
   loreBox.style.background = "#161a23";
   loreBox.style.borderLeft = "4px solid #558b2f";
   loreBox.style.color = "#e0e0e0";
-  loreBox.innerText = forbiddenFruit.active
+  setLore(forbiddenFruit.active
     ? "The three seals are remembered. A crimson fruit has fallen from the eastern tree..."
-    : '"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."';
+    : '"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."');
   
   updateSigilHUD();
   spawnItem();
@@ -504,6 +597,8 @@ function update() {
   }
 
   let touchedAnomalyThisFrame = false;
+  const prevX = player.x;
+  const prevY = player.y;
 
   let nextX = player.x;
   if (keys["a"] || keys["arrowleft"]) nextX -= player.speed;
@@ -549,6 +644,28 @@ function update() {
     player.y = nextY;
   }
 
+  // Paranoia Whispering Lore Box check when standing still
+  const moved = (player.x !== prevX || player.y !== prevY);
+  if (!moved) {
+    idleFrames++;
+    // After ~3.5 seconds of standing still (210 frames)
+    if (idleFrames === 210 && (isUpsideDown || score >= 4 || forbiddenTouches > 0)) {
+      isWhispering = true;
+      const pool = isUpsideDown ? abyssWhispers : edenWhispers;
+      loreBox.style.color = "#ff5252";
+      loreBox.style.fontStyle = "italic";
+      loreBox.innerText = pool[Math.floor(Math.random() * pool.length)];
+    }
+  } else {
+    idleFrames = 0;
+    if (isWhispering) {
+      isWhispering = false;
+      loreBox.style.color = isUpsideDown ? "#ff9999" : "#e0e0e0";
+      loreBox.style.fontStyle = "normal";
+      loreBox.innerText = savedLoreText;
+    }
+  }
+
   if (!isUpsideDown && touchedAnomalyThisFrame) {
     handleAnomalyTouch();
   }
@@ -566,28 +683,28 @@ function update() {
       score++;
       scoreText.innerText = `FRUITS GATHERED: ${score} / 20`;
       if (score === 5) {
-        loreBox.innerText = "Deep in the woods, the shadows grow long. Something feels different near the eastern edge.";
+        setLore("Deep in the woods, the shadows grow long. Something feels different near the eastern edge.");
       } else if (score === 12) {
-        loreBox.innerText = "You remain faithful to the harvest, ignoring the strange pull from the east.";
+        setLore("You remain faithful to the harvest, ignoring the strange pull from the east.");
       }
       
       if (score >= 20) {
         gameOver = true;
         edenWon = true;
         saveEnding("eden");
-        loreBox.innerText = "MATTHEW 25:21 — 'Well done, good and faithful servant. Enter into the joy of your master.'";
+        setLore("MATTHEW 25:21 — 'Well done, good and faithful servant. Enter into the joy of your master.'");
       } else {
         spawnItem();
       }
     } else {
       eyesCollected++;
       scoreText.innerText = `SEALS BROKEN: ${eyesCollected} / ${targetSeals}`;
-      loreBox.innerText = abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)];
+      setLore(abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)]);
       
-      // Sharper speed scaling per seal break
       watcher.baseSpeed += isTrueAbyss ? 0.13 : 0.14;
       watcherStunTimer = 36; 
       shakeTime = 20;
+      phantomItem.active = false; // Clear phantom on real seal break
       
       if (eyesCollected >= targetSeals) {
         gameOver = true;
@@ -606,6 +723,23 @@ function update() {
   }
 
   if (isUpsideDown) {
+    // Phantom Eye Hallucinations in the Abyss
+    if (!phantomItem.active && eyesCollected >= 1 && Math.random() < 0.002) {
+      spawnPhantomItem();
+    }
+    if (phantomItem.active) {
+      phantomItem.timer--;
+      const distToPhantom = Math.hypot((player.x + 10) - (phantomItem.x + 7), (player.y + 10) - (phantomItem.y + 7));
+      // Dissolves if player gets close or timer expires
+      if (distToPhantom < 42 || phantomItem.timer <= 0) {
+        phantomItem.active = false;
+        if (distToPhantom < 42) {
+          shakeTime = 10;
+          setLore("A MIRAGE OF THE PIT. YOUR EYES DECEIVE YOU.");
+        }
+      }
+    }
+
     const dx = player.x - watcher.x;
     const dy = player.y - watcher.y;
     const dist = Math.hypot(dx, dy);
@@ -613,12 +747,11 @@ function update() {
     if (dist > 0) {
       let dynamicSpeed = watcher.baseSpeed;
       if (dist > 200) {
-        dynamicSpeed += 0.85; // Faster distance-closing rush when far away
+        dynamicSpeed += 0.85;
       } else if (dist < 80) {
-        dynamicSpeed -= 0.08; // Tight juke window when right on your heels
+        dynamicSpeed -= 0.08;
       }
 
-      // High max speed cap pushing near player's 2.05 movement speed
       const maxCap = isTrueAbyss ? 2.02 : 1.96;
       dynamicSpeed = Math.min(dynamicSpeed, maxCap);
 
@@ -631,7 +764,7 @@ function update() {
     }
 
     const pad = 4;
-    if (checkCollision(
+    if (!godMode && checkCollision(
       player.x, player.y, player.size, player.size,
       watcher.x + pad, watcher.y + pad, watcher.size - pad * 2, watcher.size - pad * 2
     )) {
@@ -724,7 +857,7 @@ function draw() {
       drawWatcher(anomaly.x - 15, anomaly.y - 10, 28);
     }
 
-    ctx.fillStyle = isFlickering ? "#b0bec5" : "#ffffff";
+    ctx.fillStyle = godMode ? "#ffd700" : (isFlickering ? "#b0bec5" : "#ffffff");
     ctx.fillRect(player.x, player.y, player.size, player.size);
     ctx.fillStyle = "#000000";
     ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
@@ -758,6 +891,7 @@ function draw() {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
+    // Real Eye Item
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
     ctx.ellipse(item.x + 7, item.y + 7, 10, 6, 0, 0, Math.PI * 2);
@@ -767,7 +901,19 @@ function draw() {
     ctx.arc(item.x + 7, item.y + 7, 3.5, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = "#b0bec5";
+    // Phantom Hallucination Eye (flickers faintly)
+    if (phantomItem.active && glitchTimer % 6 < 4) {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+      ctx.beginPath();
+      ctx.ellipse(phantomItem.x + 7, phantomItem.y + 7, 10, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255, 0, 0, 0.55)";
+      ctx.beginPath();
+      ctx.arc(phantomItem.x + 7, phantomItem.y + 7, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = godMode ? "#ffd700" : "#b0bec5";
     ctx.fillRect(player.x, player.y, player.size, player.size);
 
     drawWatcher(watcher.x, watcher.y, watcher.size);
