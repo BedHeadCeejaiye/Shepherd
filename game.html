@@ -44,7 +44,7 @@
 <body>
 
 <div id="hud">
-  <span id="score-text">FRUITS GATHERED: 0</span>
+  <span id="score-text">FRUITS GATHERED: 0 / 20</span>
   <span id="realm-text" style="color: #a8e6cf;">REALM: EDEN'S GROVE</span>
 </div>
 
@@ -67,6 +67,7 @@ canvas.addEventListener("click", () => canvas.focus());
 let isUpsideDown = false;
 let gameOver = false;
 let won = false;
+let edenWon = false;
 let score = 0;
 let eyesCollected = 0;
 let forbiddenTouches = 0;
@@ -182,7 +183,6 @@ function handleAnomalyTouch() {
   forbiddenTouches++;
   shakeTime = 12;
 
-  // Push player away from the center of the tree regardless of approach angle
   const dx = (player.x + player.size / 2) - (anomaly.x + anomaly.width / 2);
   const dy = (player.y + player.size / 2) - (anomaly.y + anomaly.height / 2);
   const dist = Math.hypot(dx, dy) || 1;
@@ -204,6 +204,7 @@ function resetGame() {
   isUpsideDown = false;
   gameOver = false;
   won = false;
+  edenWon = false;
   score = 0;
   eyesCollected = 0;
   forbiddenTouches = 0;
@@ -214,7 +215,7 @@ function resetGame() {
   
   realmText.innerText = "REALM: EDEN'S GROVE";
   realmText.style.color = "#a8e6cf";
-  scoreText.innerText = "FRUITS GATHERED: 0";
+  scoreText.innerText = "FRUITS GATHERED: 0 / 20";
   scoreText.style.color = "#ffffff";
   
   loreBox.style.background = "#161a23";
@@ -289,7 +290,6 @@ function update() {
     player.y = nextY;
   }
 
-  // Trigger the anomaly interaction if bumped into from any direction
   if (!isUpsideDown && touchedAnomalyThisFrame) {
     handleAnomalyTouch();
   }
@@ -298,11 +298,20 @@ function update() {
   if (checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
     if (!isUpsideDown) {
       score++;
-      scoreText.innerText = `FRUITS GATHERED: ${score}`;
+      scoreText.innerText = `FRUITS GATHERED: ${score} / 20`;
       if (score === 5) {
         loreBox.innerText = "Deep in the woods, the shadows grow long. Pay attention to where the grass has withered.";
+      } else if (score === 12) {
+        loreBox.innerText = "You remain faithful to the harvest, ignoring the strange pull from the east.";
       }
-      spawnItem();
+      
+      if (score >= 20) {
+        gameOver = true;
+        edenWon = true;
+        loreBox.innerText = "MATTHEW 25:21 — 'Well done, good and faithful servant. Enter into the joy of your master.'";
+      } else {
+        spawnItem();
+      }
     } else {
       eyesCollected++;
       scoreText.innerText = `SEALS BROKEN: ${eyesCollected} / 6`;
@@ -449,11 +458,25 @@ function draw() {
   }
 
   if (gameOver) {
-    ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.textAlign = "center";
 
-    if (won) {
+    if (edenWon) {
+      // Peaceful Ending Overlay
+      ctx.fillStyle = "rgba(255, 248, 220, 0.90)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#2e7d32";
+      ctx.font = "bold 22px Courier New";
+      ctx.fillText("THE OBEDIENT SHEPHERD", canvas.width / 2, 150);
+      ctx.fillStyle = "#333333";
+      ctx.font = "13px Courier New";
+      ctx.fillText("You tended the grove in peace and resisted temptation.", canvas.width / 2, 185);
+      ctx.fillStyle = "#666666";
+      ctx.font = "12px Courier New";
+      ctx.fillText("Press [R] to replay... or inspect the withered grass in the east.", canvas.width / 2, 235);
+    } else if (won) {
+      // Abyss Survival Ending
+      ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#ff5252";
       ctx.font = "bold 24px Courier New";
       ctx.fillText("BE NOT AFRAID.", canvas.width / 2, 160);
@@ -462,6 +485,9 @@ function draw() {
       ctx.fillText("You gazed into the Abyss and survived the revelation.", canvas.width / 2, 195);
       ctx.fillText("Press [R] to return to the beginning.", canvas.width / 2, 240);
     } else {
+      // Abyss Death Ending
+      ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#ff0000";
       ctx.font = "bold 26px Courier New";
       ctx.fillText("CAST INTO OUTER DARKNESS", canvas.width / 2, 160);
