@@ -869,12 +869,10 @@ function toggleCodex() {
       manuscript += "  * [ Sealed with a heavy wax stamp. Unlock the abyss seals and enter the pit to decode this realm... ] *\n\n";
     }
 
-    // Realm 4: The Eighth Day (True Ending)
-    manuscript += "[ REALM IV: THE EIGHTH DAY // THE CROWN ]\n";
+    // Realm 4: The Eighth Day (True Ending) - COMPLETELY HIDDEN UNTIL UNLOCKED & VISITED
     if (unlocked.trueEnd) {
+      manuscript += "[ REALM IV: THE EIGHTH DAY // THE CROWN ]\n";
       manuscript += "  'And when the bottomless pit opened its jaws, we did not run. We hunted the watcher down. In consuming the core, the simulation collapsed into our hands. We hold the syntax. We are the architects now.'\n";
-    } else {
-      manuscript += "  * [ Hidden behind the 4th true hidden ending. Consume the watcher to decode this final page. ] *\n";
     }
 
     codexContent.innerText = manuscript;
