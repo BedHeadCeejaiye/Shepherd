@@ -108,7 +108,7 @@
   
   <!-- F1 Console Terminal -->
   <div id="console-overlay">
-    <div id="console-log">SYS_CONSOLE v1.2 [EDEN_ABYSS KERNEL]
+    <div id="console-log">SYS_CONSOLE v1.3 [EDEN_ABYSS KERNEL]
 Type 'help' for available administrative commands. Press [F1] to close.
 --------------------------------------------------</div>
     <div id="console-input-line">
@@ -137,42 +137,157 @@ const consoleInput = document.getElementById("console-input");
 let consoleOpen = false;
 let godMode = false;
 
-// Web Audio API Heartbeat Context
+// ==================== PROCEDURAL AUDIO ENGINE ====================
 let audioCtx = null;
 let lastHeartbeatTime = 0;
+let ambientTimer = 0;
 
-function playHeartbeat(intensity = 1.0) {
+function unlockAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
+}
+
+// SFX: Item / Seal Collect Chime
+function playCollectSound() {
   try {
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-    }
-
+    unlockAudio();
+    const now = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
 
-    osc.type = 'sine';
-    // Deep structural thud pitch
-    osc.frequency.setValueAtTime(55 * intensity, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.18);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(440, now);
+    osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
 
-    gain.gain.setValueAtTime(0.6 * intensity, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
 
     osc.connect(gain);
     gain.connect(audioCtx.destination);
 
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.22);
-  } catch (e) {
-    // Audio context restricted before user interaction
+    osc.start(now);
+    osc.stop(now + 0.2);
+  } catch (e) {}
+}
+
+// SFX: Death / Jump scare chord
+function playDeathSound() {
+  try {
+    unlockAudio();
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.linearRampToValueAtTime(40, now + 0.5);
+
+    gain.gain.setValueAtTime(0.35, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.6);
+  } catch (e) {}
+}
+
+// SFX: True Ending Celestial Chord
+function playTrueEndingSound() {
+  try {
+    unlockAudio();
+    const now = audioCtx.currentTime;
+    [261.63, 329.63, 392.00, 523.25].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + i * 0.1);
+      gain.gain.setValueAtTime(0.15, now + i * 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.5);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now + i * 0.1);
+      osc.stop(now + 2.5);
+    });
+  } catch (e) {}
+}
+
+// Heartbeat for Chase Phase
+function triggerThump(startTime, freqStart, volume) {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(freqStart, startTime);
+  osc.frequency.exponentialRampToValueAtTime(28, startTime + 0.16);
+  gain.gain.setValueAtTime(volume, startTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.18);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(startTime);
+  osc.stop(startTime + 0.19);
+}
+
+function playHeartbeat(intensity = 1.0) {
+  try {
+    unlockAudio();
+    const now = audioCtx.currentTime;
+    triggerThump(now, 85 * intensity, 0.85);
+    triggerThump(now + 0.14, 65 * intensity, 0.65);
+  } catch (e) {}
+}
+
+// Ambient Background Music Loop (Updates based on current realm)
+function updateAmbientMusic(dt) {
+  if (!audioCtx || audioCtx.state !== 'running' || gameOver) return;
+  ambientTimer += dt;
+  
+  if (ambientTimer >= 5.5) {
+    ambientTimer = 0;
+    try {
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      if (!isUpsideDown) {
+        // Peaceful Eden Chords (Major root notes)
+        const notes = [220, 277.18, 329.63, 440];
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(notes[Math.floor(Math.random() * notes.length)], now);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 4.0);
+      } else if (!isTrueAbyss) {
+        // Dark Abyss Drones (Dissonant minor interval)
+        const notes = [110, 116.54, 130.81];
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(notes[Math.floor(Math.random() * notes.length)], now);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 3.5);
+      } else {
+        // Bottomless Pit Industrial Hum
+        const notes = [65.41, 73.42, 82.41];
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(notes[Math.floor(Math.random() * notes.length)], now);
+        gain.gain.setValueAtTime(0.06, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 3.0);
+      }
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 4.0);
+    } catch (e) {}
   }
 }
+// =================================================================
 
 canvas.focus();
 canvas.addEventListener("click", () => {
+  unlockAudio();
   if (!consoleOpen) canvas.focus();
 });
 
@@ -220,15 +335,11 @@ let hasFlickeredBefore = false;
 let isWatcherFleeing = false;
 let fleeGraceTimer = 0;
 
-// Watcher Juke & Trail Mechanics
 let watcherJukeTimer = 0;
 let watcherJukeOffset = 1.0;
-let watcherTrail = []; // Stores recent positions for the glitch trail
-
-// Subliminal Glyphs Background Array
+let watcherTrail = [];
 let subliminalGlyphs = [];
 
-// Paranoia State Variables (Real-Time Based)
 let playerStillTimer = performance.now();
 let lastPlayerX = 50;
 let lastPlayerY = 200;
@@ -328,7 +439,6 @@ function setLore(text) {
   }
 }
 
-// Console Command Parser
 function logToConsole(text) {
   consoleLog.innerText += "\n" + text;
   consoleLog.scrollTop = consoleLog.scrollHeight;
@@ -411,7 +521,7 @@ function processCommand(cmd) {
     logToConsole(`[SYS]: Teleported player to (${Math.round(player.x)}, ${Math.round(player.y)}).`);
     toggleConsole();
   } else if (baseCmd === "clear") {
-    consoleLog.innerText = "SYS_CONSOLE v1.2 [EDEN_ABYSS KERNEL]";
+    consoleLog.innerText = "SYS_CONSOLE v1.3 [EDEN_ABYSS KERNEL]";
   } else if (baseCmd !== "") {
     logToConsole(`[ERROR]: Unknown command '${baseCmd}'. Type 'help' for options.`);
   }
@@ -430,6 +540,7 @@ function toggleConsole() {
 }
 
 consoleInput.addEventListener("keydown", (e) => {
+  unlockAudio();
   if (e.key === "Enter") {
     processCommand(consoleInput.value);
   } else if (e.key === "F1") {
@@ -440,6 +551,8 @@ consoleInput.addEventListener("keydown", (e) => {
 
 const keys = {};
 window.addEventListener("keydown", (e) => {
+  unlockAudio();
+
   if (e.key === "F1") {
     e.preventDefault();
     toggleConsole();
@@ -637,11 +750,10 @@ function updateSanityBorder() {
   const pulseSpeed = (isWatcherFleeing ? 0.3 : 0.08) + proximity * 0.25;
   const pulse = (Math.sin(glitchTimer * pulseSpeed) + 1) / 2;
 
-  // Heartbeat Audio trigger during the chase/flee phase
   if (isWatcherFleeing) {
     const now = performance.now();
-    if (now - lastHeartbeatTime > 450) {
-      playHeartbeat(1.2);
+    if (now - lastHeartbeatTime > 520) {
+      playHeartbeat(1.1);
       lastHeartbeatTime = now;
     }
   }
@@ -657,6 +769,8 @@ function updateSanityBorder() {
 function update(dt) {
   if (consoleOpen) return;
 
+  updateAmbientMusic(dt);
+
   if (shakeTime > 0) shakeTime -= dt * 60;
   if (flickerFrames > 0) flickerFrames -= dt * 60;
   if (watcherStunTimer > 0) watcherStunTimer -= dt * 60;
@@ -664,7 +778,6 @@ function update(dt) {
   if (fleeGraceTimer > 0) fleeGraceTimer -= dt;
   if (gameOver) return;
 
-  // Spawn Subliminal Glyphs in Abyss/Pit realms
   if (isUpsideDown && Math.random() < 0.04) {
     const texts = ["0x7FFF", "ABANDON", "SEAL_BROKEN", "NULL_PTR", "WATCHED", "SHEOL"];
     subliminalGlyphs.push({
@@ -738,7 +851,6 @@ function update(dt) {
     player.y = nextY;
   }
 
-  // Real-Time Stillness Check (10000ms = exactly 10 seconds)
   const moved = (Math.abs(player.x - lastPlayerX) > 0.1 || Math.abs(player.y - lastPlayerY) > 0.1);
   if (moved) {
     playerStillTimer = performance.now();
@@ -772,8 +884,8 @@ function update(dt) {
     }
   }
 
-  // Only check item pickup if we aren't already in the hunt phase
   if (!isWatcherFleeing && checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
+    playCollectSound();
     if (!isUpsideDown) {
       score++;
       scoreText.innerText = `FRUITS GATHERED: ${score} / 20`;
@@ -884,7 +996,6 @@ function update(dt) {
         watcher.x = Math.max(15, Math.min(canvas.width - 40, watcher.x));
         watcher.y = Math.max(15, Math.min(canvas.height - 40, watcher.y));
 
-        // Push position into glitch trail buffer
         watcherTrail.push({ x: watcher.x, y: watcher.y, life: 12 });
         if (watcherTrail.length > 8) watcherTrail.shift();
       } else {
@@ -896,7 +1007,6 @@ function update(dt) {
       }
     }
 
-    // Decay trail life frames
     for (let t of watcherTrail) {
       t.life--;
     }
@@ -905,6 +1015,7 @@ function update(dt) {
       player.x, player.y, player.size, player.size,
       watcher.x, watcher.y, watcher.size, watcher.size
     )) {
+      playTrueEndingSound();
       gameOver = true;
       trueWon = true;
       saveEnding("trueEnd");
@@ -916,6 +1027,7 @@ function update(dt) {
       player.x, player.y, player.size, player.size,
       watcher.x + pad, watcher.y + pad, watcher.size - pad * 2, watcher.size - pad * 2
     )) {
+      playDeathSound();
       gameOver = true;
       won = false;
       saveEnding("death");
@@ -928,7 +1040,6 @@ function update(dt) {
 }
 
 function drawWatcher(wx, wy, wsize, fleeing = false) {
-  // Draw Glitch Distortion Trail during fleeing phase
   if (fleeing) {
     for (let t of watcherTrail) {
       ctx.save();
@@ -1041,7 +1152,6 @@ function draw() {
       ctx.stroke();
     }
 
-    // Render Subliminal Glyphs
     ctx.font = "10px Courier New";
     ctx.fillStyle = "rgba(255, 0, 0, 0.22)";
     for (let g of subliminalGlyphs) {
