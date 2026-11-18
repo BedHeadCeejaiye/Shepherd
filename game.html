@@ -229,7 +229,7 @@ const watcher = {
   x: 550,
   y: 50,
   size: 28,
-  baseSpeed: 1.35 // Increased base speed
+  baseSpeed: 1.55 // High base speed
 };
 
 const abyssLore = [
@@ -364,7 +364,7 @@ function triggerUpsideDown(trueMode = false) {
   player.y = 200;
   watcher.x = 540;
   watcher.y = 200;
-  watcher.baseSpeed = trueMode ? 1.45 : 1.35; // Faster initial Abyss speed
+  watcher.baseSpeed = trueMode ? 1.65 : 1.55; // Fast initial Abyss speeds
   
   realmText.innerText = trueMode ? "REALM: THE BOTTOMLESS PIT" : "REALM: SHEOL // THE ABYSS";
   realmText.style.color = "#ff2a2a";
@@ -419,7 +419,7 @@ function resetGame() {
   hasFlickeredBefore = false;
   player.x = 50;
   player.y = 200;
-  watcher.baseSpeed = 1.35;
+  watcher.baseSpeed = 1.55;
   
   canvas.style.borderColor = "#333";
   canvas.style.boxShadow = "0 0 20px rgba(0,0,0,0.8)";
@@ -584,8 +584,8 @@ function update() {
       scoreText.innerText = `SEALS BROKEN: ${eyesCollected} / ${targetSeals}`;
       loreBox.innerText = abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)];
       
-      // Sharper speed scaling per seal
-      watcher.baseSpeed += isTrueAbyss ? 0.11 : 0.12;
+      // Sharper speed scaling per seal break
+      watcher.baseSpeed += isTrueAbyss ? 0.13 : 0.14;
       watcherStunTimer = 36; 
       shakeTime = 20;
       
@@ -612,14 +612,14 @@ function update() {
 
     if (dist > 0) {
       let dynamicSpeed = watcher.baseSpeed;
-      if (dist > 220) {
-        dynamicSpeed += 0.75; // Closes distance even faster from afar
-      } else if (dist < 85) {
-        dynamicSpeed -= 0.12; // Maintains the tight juke window when right on your heels
+      if (dist > 200) {
+        dynamicSpeed += 0.85; // Faster distance-closing rush when far away
+      } else if (dist < 80) {
+        dynamicSpeed -= 0.08; // Tight juke window when right on your heels
       }
 
-      // Slightly higher max cap so it stays menacing
-      const maxCap = isTrueAbyss ? 1.92 : 1.84;
+      // High max speed cap pushing near player's 2.05 movement speed
+      const maxCap = isTrueAbyss ? 2.02 : 1.96;
       dynamicSpeed = Math.min(dynamicSpeed, maxCap);
 
       if (watcherStunTimer > 0) {
