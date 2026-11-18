@@ -646,7 +646,6 @@ let unlocked = JSON.parse(localStorage.getItem("eden_abyss_endings")) || {
   trueEnd: false
 };
 
-// Track how many individual seals have ever been collected across runs for Codex depth
 let savedSealsCount = parseInt(localStorage.getItem("eden_abyss_seals_count")) || 0;
 
 function saveEnding(key) {
@@ -765,7 +764,7 @@ const watcher = {
   baseSpeed: 330
 };
 
-// 9 Distinct Seal Lore Entries for the Codex Sub-sections
+// 9 Unique Seal Lore Entries for the Codex (6 for Abyss, 3 for Bottomless Pit)
 const abyssSealCodexEntries = [
   "  - Seal I [Genesis 3:24]: The expulsion protocol. The flaming sword that blocks the return path.",
   "  - Seal II [Ezekiel 1:18]: The thousand-eyed wheels of the firewall. They never blink, scanning every tile.",
@@ -835,11 +834,11 @@ function toggleCodex() {
       manuscript += "  * [ The parchment is blank here. Complete the 20-fruit harvest in Eden to unlock this realm's truth... ] *\n\n";
     }
 
-    // Realm 2: Sheol // The Abyss
+    // Realm 2: Sheol // The Abyss (6 Seals)
     manuscript += "[ REALM II: SHEOL // THE ABYSS ]\n";
-    if (unlocked.death || unlocked.revelation) {
+    if (unlocked.death || unlocked.revelation || savedSealsCount > 0) {
       manuscript += "  'To fall through the bleeding anomaly is to enter the basement of the simulation. Here, the green illusion drops away, revealing raw hex code and weeping darkness. The Watcher hunts all who trespass here.'\n";
-      manuscript += "  --- EXCAVATED SEALS INSIDE THIS REALM (" + Math.min(savedSealsCount, 6) + "/6) ---\n";
+      manuscript += "  --- EXCAVATED SEALS (" + Math.min(savedSealsCount, 6) + "/6) ---\n";
       const unlockedSealsInAbyss = Math.min(savedSealsCount, 6);
       for (let i = 0; i < 6; i++) {
         if (i < unlockedSealsInAbyss) {
@@ -853,21 +852,21 @@ function toggleCodex() {
       manuscript += "  * [ The text is charred and unreadable. Perish or explore the abyss to reveal the realm's secrets... ] *\n\n";
     }
 
-    // Realm 3: The Bottomless Pit
-    manuscript += "[ REALM III: THE BOTTOMLESS PIT // ROOT ACCESS ]\n";
+    // Realm 3: The Bottomless Pit (9 Seals total, 3 specific pit seals)
+    manuscript += "[ REALM III: THE BOTTOMLESS PIT ]\n";
     if (unlocked.trueEnd || savedSealsCount > 6) {
       manuscript += "  'The deepest layer of all. Where rules break down entirely and the final crimson fruit ripens for those who conquered the lower dark.'\n";
-      manuscript += "  --- EXPANDED PIT SEALS (" + Math.max(0, savedSealsCount - 6) + "/3) ---\n";
+      manuscript += "  --- BOTTOMLESS PIT SEALS (" + Math.max(0, Math.min(savedSealsCount - 6, 3)) + "/3) ---\n";
       for (let i = 6; i < 9; i++) {
         if (savedSealsCount > i) {
           manuscript += abyssSealCodexEntries[i] + "\n";
         } else {
-          manuscript += "  - Seal " + (i+1) + ": [Locked inside the Bottomless Pit.]\n";
+          manuscript += "  - Seal " + (i+1) + ": [Locked inside the Bottomless Pit. Gather all 9 seals to decode.]\n";
         }
       }
       manuscript += "\n";
     } else {
-      manuscript += "  * [ Sealed with a heavy wax stamp. Unlock the three base truths first... ] *\n\n";
+      manuscript += "  * [ Sealed with a heavy wax stamp. Unlock the abyss seals and enter the pit to decode this realm... ] *\n\n";
     }
 
     // Realm 4: The Eighth Day (True Ending)
@@ -1376,7 +1375,7 @@ function update(dt) {
       scoreTextTop.innerText = `SEALS BROKEN: ${eyesCollected}`;
       setLore(abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)]);
       
-      watcher.baseSpeed += isTrueAbyss ? 18 : 20;
+      watcher.baseSpeed += isTrueAbyss ? 16 : 20;
       watcherStunTimer = 36; 
       shakeTime = 20;
       phantomItem.active = false;
