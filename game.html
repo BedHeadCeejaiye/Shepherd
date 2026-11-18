@@ -14,6 +14,9 @@
     user-select: none;
     position: relative;
   }
+  #game-wrapper {
+    position: relative;
+  }
   canvas {
     border: 3px solid #333;
     border-radius: 4px;
@@ -36,15 +39,28 @@
     font-size: 12px;
     color: #555;
   }
-  #volume-container {
+  /* Floating Volume Widget on the side */
+  #volume-widget {
+    position: absolute;
+    bottom: 12px;
+    left: -70px;
+    background: rgba(22, 26, 35, 0.9);
+    border: 1px solid #333;
+    padding: 8px 10px;
+    border-radius: 4px;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 6px;
-    font-size: 12px;
+    gap: 4px;
+    font-size: 10px;
     color: #a8e6cf;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
   }
   #volume-slider {
-    width: 80px;
+    writing-mode: bt-lr; /* IE */
+    -webkit-appearance: slider-vertical;
+    width: 8px;
+    height: 70px;
     cursor: pointer;
   }
   #lore-box {
@@ -110,20 +126,22 @@
 
 <div id="hud">
   <span id="score-text">FRUITS GATHERED: 0 / 20</span>
-  <div id="volume-container">
-    <span>VOL:</span>
-    <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.35">
-  </div>
   <span id="sigils" title="Unlocked Endings">[---] [---] [---]</span>
   <span id="realm-text" style="color: #a8e6cf;">REALM: EDEN'S GROVE</span>
 </div>
 
-<div style="position: relative;">
+<div id="game-wrapper">
+  <!-- Floating Side Volume Control -->
+  <div id="volume-widget">
+    <span>VOL</span>
+    <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.35">
+  </div>
+
   <canvas id="gameCanvas" width="600" height="400" tabindex="0"></canvas>
   
   <!-- F1 Console Terminal -->
   <div id="console-overlay">
-    <div id="console-log">SYS_CONSOLE v1.6 [EDEN_ABYSS KERNEL]
+    <div id="console-log">SYS_CONSOLE v1.7 [EDEN_ABYSS KERNEL]
 Type 'help' for available administrative commands. Press [F1] to close.
 --------------------------------------------------</div>
     <div id="console-input-line">
@@ -586,7 +604,7 @@ function processCommand(cmd) {
     logToConsole(`[SYS]: Teleported player to (${Math.round(player.x)}, ${Math.round(player.y)}).`);
     toggleConsole();
   } else if (baseCmd === "clear") {
-    consoleLog.innerText = "SYS_CONSOLE v1.6 [EDEN_ABYSS KERNEL]";
+    consoleLog.innerText = "SYS_CONSOLE v1.7 [EDEN_ABYSS KERNEL]";
   } else if (baseCmd !== "") {
     logToConsole(`[ERROR]: Unknown command '${baseCmd}'. Type 'help' for options.`);
   }
