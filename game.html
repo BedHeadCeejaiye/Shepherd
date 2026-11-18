@@ -153,7 +153,6 @@ function saveEnding(key) {
   unlocked[key] = true;
   localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
   updateSigilHUD();
-  checkForbiddenFruitSpawn();
 }
 
 function allBaseEndingsUnlocked() {
@@ -186,6 +185,10 @@ let flickerCooldown = 0;
 let hasFlickeredBefore = false;
 let isWatcherFleeing = false;
 let fleeGraceTimer = 0;
+
+// Watcher Juke Mechanics
+let watcherJukeTimer = 0;
+let watcherJukeOffset = 1.0;
 
 // Paranoia State Variables (Real-Time Based)
 let playerStillTimer = performance.now();
@@ -464,6 +467,8 @@ function triggerUpsideDown(trueMode = false) {
   isWhispering = false;
   isWatcherFleeing = false;
   fleeGraceTimer = 0;
+  watcherJukeTimer = 0;
+  watcherJukeOffset = 1.0;
   phantomItem.active = false;
   player.x = 60;
   player.y = 200;
@@ -524,6 +529,8 @@ function resetGame() {
   hasFlickeredBefore = false;
   isWatcherFleeing = false;
   fleeGraceTimer = 0;
+  watcherJukeTimer = 0;
+  watcherJukeOffset = 1.0;
   playerStillTimer = performance.now();
   isWhispering = false;
   phantomItem.active = false;
@@ -731,6 +738,7 @@ function update(dt) {
             fleeGraceTimer = 0.6; 
             watcherStunTimer = 0; 
             watcher.baseSpeed = 240; 
+            watcherJukeTimer = 0;
             scoreText.innerText = "CONSUME THE WATCHER";
             scoreText.style.color = "#ffffff";
             setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
@@ -774,25 +782,35 @@ function update(dt) {
       let dynamicSpeed = watcher.baseSpeed;
 
       if (isWatcherFleeing) {
+        // PREDICTIVE JUKE EVASION AI: Snaps to sudden side-step angles to fake out player pursuit
+        watcherJukeTimer -= dt;
+        if (watcherJukeTimer <= 0) {
+          watcherJukeTimer = 0.35 + Math.random() * 0.55; // Juke switch interval
+          // Randomly choose a sharp left or right juke bias multiplier
+          watcherJukeOffset = (Math.random() < 0.5 ? 1 : -1) * (1.2 + Math.random() * 1.8);
+        }
+
         let fleeX = -(dx / dist);
         let fleeY = -(dy / dist);
 
-        let erraticFactor = Math.sin(glitchTimer * 0.3) * 1.1;
-        let perpX = -fleeY * erraticFactor;
-        let perpY = fleeX * erraticFactor;
-        fleeX += perpX;
-        fleeY += perpY;
+        // Apply perpendicular juke vector for sharp side-stepping
+        let perpX = -fleeY * watcherJukeOffset;
+        let perpY = fleeX * watcherJukeOffset;
+        fleeX += perpX * 0.85;
+        fleeY += perpY * 0.85;
 
-        if (dist < 150) {
-          dynamicSpeed = 460;
+        // Panic speed burst when you get too close (< 160px)
+        if (dist < 160) {
+          dynamicSpeed = 480; 
         } else {
-          dynamicSpeed = 260;
+          dynamicSpeed = 270;
         }
 
-        if (watcher.x < 70) fleeX += 1.2;
-        if (watcher.x > canvas.width - 90) fleeX -= 1.2;
-        if (watcher.y < 70) fleeY += 1.2;
-        if (watcher.y > canvas.height - 90) fleeY -= 1.2;
+        // Strong arena boundary wall push
+        if (watcher.x < 70) fleeX += 1.4;
+        if (watcher.x > canvas.width - 90) fleeX -= 1.4;
+        if (watcher.y < 70) fleeY += 1.4;
+        if (watcher.y > canvas.height - 90) fleeY -= 1.4;
 
         const fleeNorm = Math.hypot(fleeX, fleeY) || 1;
         watcher.x += (fleeX / fleeNorm) * dynamicSpeed * dt;
@@ -838,7 +856,7 @@ function update(dt) {
 function drawWatcher(wx, wy, wsize, fleeing = false) {
   ctx.save();
   ctx.translate(wx + wsize / 2, wy + wsize / 2);
-  const rotSpeed = watcherStunTimer > 0 ? 0.015 : (fleeing ? 0.22 : 0.05);
+  const rotSpeed = watcherStunTimer > 0 ? 0.015 : (fleeing ? 0.25 : 0.05);
   ctx.rotate(glitchTimer * rotSpeed);
   
   ctx.strokeStyle = fleeing ? "#ffffff" : (watcherStunTimer > 0 ? "#ff8a80" : "#ff1744");
@@ -974,96 +992,4 @@ function draw() {
 
     drawWatcher(watcher.x, watcher.y, watcher.size, isWatcherFleeing);
 
-    const visionRadius = isWatcherFleeing ? 260 : (isTrueAbyss ? 175 : 210);
-    const gradient = ctx.createRadialGradient(
-      player.x + 10, player.y + 10, 35,
-      player.x + 10, player.y + 10, visionRadius
-    );
-    gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
-    gradient.addColorStop(1, "rgba(0, 0, 0, 0.95)");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }
-
-  if (gameOver) {
-    ctx.textAlign = "center";
-
-    if (edenWon) {
-      ctx.fillStyle = "rgba(255, 248, 220, 0.90)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#2e7d32";
-      ctx.font = "bold 22px Courier New";
-      ctx.fillText("THE OBEDIENT SHEPHERD", canvas.width / 2, 150);
-      ctx.fillStyle = "#333333";
-      ctx.font = "13px Courier New";
-      ctx.fillText("You tended the grove in peace and resisted temptation.", canvas.width / 2, 185);
-      ctx.fillStyle = "#666666";
-      ctx.font = "12px Courier New";
-      ctx.fillText("Press [R] to replay... but something feels off.", canvas.width / 2, 235);
-    } else if (trueWon) {
-      ctx.fillStyle = "rgba(5, 2, 8, 0.96)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
-      for (let i = 0; i < 5; i++) {
-        ctx.beginPath();
-        ctx.arc(canvas.width / 2, canvas.height / 2, 40 + i * 35, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      ctx.fillStyle = "#ff1744";
-      ctx.font = "bold 18px Courier New";
-      ctx.fillText("[THE EIGHTH DAY // ROOT ACCESS GRANTED]", canvas.width / 2, 130);
-      
-      ctx.fillStyle = "#a8e6cf";
-      ctx.font = "11px Courier New";
-      ctx.fillText("memory_addr: 0x7fff5fbff800 -- status: WATCHER CONSUMED", canvas.width / 2, 165);
-      ctx.fillText("You did not escape the garden. You rewrote its syntax.", canvas.width / 2, 195);
-      
-      ctx.fillStyle = "#888888";
-      ctx.font = "12px Courier New";
-      ctx.fillText("Press [R] to re-compile reality.", canvas.width / 2, 245);
-    } else if (won) {
-      ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#ff5252";
-      ctx.font = "bold 24px Courier New";
-      ctx.fillText("BE NOT AFRAID.", canvas.width / 2, 160);
-      ctx.fillStyle = "#cccccc";
-      ctx.font = "14px Courier New";
-      ctx.fillText("You gazed into the Abyss and survived the revelation.", canvas.width / 2, 195);
-      ctx.fillText("Press [R] to return to the beginning.", canvas.width / 2, 240);
-    } else {
-      ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#ff0000";
-      ctx.font = "bold 26px Courier New";
-      ctx.fillText("CAST INTO OUTER DARKNESS", canvas.width / 2, 160);
-      ctx.fillStyle = "#aaaaaa";
-      ctx.font = "14px Courier New";
-      ctx.fillText("Curiosity opened the pit. The Watcher claimed you.", canvas.width / 2, 195);
-      ctx.fillText("Press [R] to try again.", canvas.width / 2, 240);
-    }
-  }
-
-  ctx.restore();
-}
-
-let lastTime = performance.now();
-
-function loop(currentTime) {
-  let dt = (currentTime - lastTime) / 1000;
-  if (dt > 0.1) dt = 0.1;
-  lastTime = currentTime;
-
-  update(dt);
-  draw();
-  requestAnimationFrame(loop);
-}
-
-updateSigilHUD();
-checkForbiddenFruitSpawn(); // Ensure fruit spawns on boot if endings are met
-requestAnimationFrame(loop);
-</script>
-</body>
-</html>
+    const visionRadius = isWatcherFleeing ? 260 : (isTrueAbyss ? 175 :
