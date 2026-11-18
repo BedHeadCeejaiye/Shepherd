@@ -14,10 +14,17 @@
     user-select: none;
     position: relative;
   }
+  /* Main container holding canvas and external side controls */
+  #game-layout {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: relative;
+  }
   #game-wrapper {
     position: relative;
-    width: 606px;
-    height: 406px;
+    width: 600px;
+    height: 400px;
   }
   canvas {
     border: 3px solid #333;
@@ -42,39 +49,30 @@
     font-size: 12px;
     color: #555;
   }
-  /* Sleek Volume Widget inside bottom-left corner so it never clips */
+  /* Volume Control Panel stationed strictly on the right side OUTSIDE the screen */
   #volume-widget {
-    position: absolute;
-    bottom: 10px;
-    left: 10px;
-    background: rgba(14, 17, 23, 0.78);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    padding: 6px 8px;
-    border-radius: 4px;
+    background: rgba(22, 26, 35, 0.9);
+    border: 1px solid #333;
+    padding: 12px 8px;
+    border-radius: 6px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
     font-size: 10px;
     color: #a8e6cf;
-    z-index: 20;
-    backdrop-filter: blur(2px);
-    transition: opacity 0.2s ease;
-  }
-  #volume-widget:hover {
-    background: rgba(14, 17, 23, 0.95);
-    border-color: #a8e6cf;
+    box-shadow: 0 0 12px rgba(0,0,0,0.6);
   }
   .slider-box {
-    width: 16px;
-    height: 64px;
+    width: 20px;
+    height: 100px;
     display: flex;
     align-items: center;
     justify-content: center;
   }
   #volume-slider {
-    width: 64px;
-    height: 4px;
+    width: 100px;
+    height: 6px;
     transform: rotate(-90deg);
     cursor: pointer;
     accent-color: #a8e6cf;
@@ -94,8 +92,8 @@
   /* Developer Console Overlay */
   #console-overlay {
     position: absolute;
-    top: 25px;
-    left: 23px;
+    top: 20px;
+    left: 20px;
     width: 560px;
     height: 240px;
     background: rgba(10, 13, 18, 0.95);
@@ -148,25 +146,27 @@
   <span id="realm-text" style="color: #a8e6cf;">REALM: EDEN'S GROVE</span>
 </div>
 
-<div id="game-wrapper">
-  <!-- Unclipped Floating Corner Volume Control -->
+<div id="game-layout">
+  <div id="game-wrapper">
+    <canvas id="gameCanvas" width="600" height="400" tabindex="0"></canvas>
+    
+    <!-- F1 Console Terminal -->
+    <div id="console-overlay">
+      <div id="console-log">SYS_CONSOLE v1.9 [EDEN_ABYSS KERNEL]
+Type 'help' for available administrative commands. Press [F1] to close.
+--------------------------------------------------</div>
+      <div id="console-input-line">
+        <span id="console-prompt">&gt;</span>
+        <input type="text" id="console-input" autocomplete="off" spellcheck="false" />
+      </div>
+    </div>
+  </div>
+
+  <!-- External Volume Slider on the Right Side Outside Screen -->
   <div id="volume-widget" title="Master Volume">
     <span>VOL</span>
     <div class="slider-box">
       <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.45">
-    </div>
-  </div>
-
-  <canvas id="gameCanvas" width="600" height="400" tabindex="0"></canvas>
-  
-  <!-- F1 Console Terminal -->
-  <div id="console-overlay">
-    <div id="console-log">SYS_CONSOLE v1.8 [EDEN_ABYSS KERNEL]
-Type 'help' for available administrative commands. Press [F1] to close.
---------------------------------------------------</div>
-    <div id="console-input-line">
-      <span id="console-prompt">&gt;</span>
-      <input type="text" id="console-input" autocomplete="off" spellcheck="false" />
     </div>
   </div>
 </div>
@@ -195,12 +195,10 @@ let godMode = false;
 let audioCtx = null;
 let masterGain = null;
 
-// Abyss / Pit Continuous Drones (Strictly muted in Eden)
 let abyssOsc1 = null;
 let abyssOsc2 = null;
 let abyssDroneGain = null;
 
-// Eden Gentle Stream / Wind Loop (Strictly muted in Abyss/Pit)
 let brookGain = null;
 let nextBirdTime = 0;
 let lastHeartbeatTime = 0;
@@ -220,7 +218,7 @@ function initAudioEngine() {
     let lastOut = 0.0;
     for (let i = 0; i < bufferSize; i++) {
       const white = Math.random() * 2 - 1;
-      output[i] = (lastOut + (0.02 * white)) / 1.02; // Smooth brown noise
+      output[i] = (lastOut + (0.02 * white)) / 1.02;
       lastOut = output[i];
       output[i] *= 1.8;
     }
@@ -242,7 +240,7 @@ function initAudioEngine() {
     brookGain.connect(masterGain);
     whiteNoise.start(0);
 
-    // 2. ABYSS & PIT HORROR DRONES (Starts at 0 volume so Eden is completely drone-free)
+    // 2. ABYSS & PIT HORROR DRONES
     abyssDroneGain = audioCtx.createGain();
     abyssDroneGain.gain.setValueAtTime(0.0, audioCtx.currentTime);
     abyssDroneGain.connect(masterGain);
@@ -285,12 +283,11 @@ volumeSlider.addEventListener("input", (e) => {
   }
 });
 
-// Procedural Forest Birdsong Chirp (Plays strictly in Eden's Grove)
 function playBirdChirp() {
   if (!audioCtx || audioCtx.state !== "running" || isUpsideDown || gameOver) return;
   try {
     const now = audioCtx.currentTime;
-    const notesCount = Math.random() < 0.45 ? 2 : 1; // Single chirp or double trill
+    const notesCount = Math.random() < 0.45 ? 2 : 1;
     const baseFreq = 2200 + Math.random() * 1100;
 
     for (let n = 0; n < notesCount; n++) {
@@ -318,13 +315,11 @@ function playBirdChirp() {
   } catch (e) {}
 }
 
-// Sharp Static / Sub-Bass Glitch Sound for Eden Flickers
 function playFlickerSound() {
   try {
     unlockAudio();
     const now = audioCtx.currentTime;
 
-    // 1. Harsh high-voltage static burst
     const bufferSize = Math.floor(audioCtx.sampleRate * 0.14);
     const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -349,7 +344,6 @@ function playFlickerSound() {
     noiseGain.connect(masterGain);
     noise.start(now);
 
-    // 2. Low sub-bass jolt
     const sub = audioCtx.createOscillator();
     const subGain = audioCtx.createGain();
     sub.type = "sawtooth";
@@ -366,23 +360,20 @@ function playFlickerSound() {
   } catch (e) {}
 }
 
-// Strictly isolates ambient audio per dimension
 function updateAmbientSoundscape(proximity, isAbyss, isPit) {
   if (!audioCtx || audioCtx.state !== "running") return;
   const now = audioCtx.currentTime;
 
   if (!isAbyss) {
-    // EDEN'S GROVE: Brook & birds ON, horror drones strictly OFF
     brookGain.gain.setTargetAtTime(0.08, now, 0.4);
     abyssDroneGain.gain.setTargetAtTime(0.0, now, 0.2);
 
     const perfNow = performance.now();
     if (perfNow >= nextBirdTime) {
       playBirdChirp();
-      nextBirdTime = perfNow + 2200 + Math.random() * 3800; // Natural random spacing
+      nextBirdTime = perfNow + 2200 + Math.random() * 3800;
     }
   } else if (!isPit) {
-    // SHEOL // ABYSS: Brook OFF, deep ominous drone ON
     brookGain.gain.setTargetAtTime(0.0, now, 0.2);
     abyssDroneGain.gain.setTargetAtTime(1.0, now, 0.4);
 
@@ -391,7 +382,6 @@ function updateAmbientSoundscape(proximity, isAbyss, isPit) {
     abyssOsc2.type = "sawtooth";
     abyssOsc2.frequency.setTargetAtTime(73.42 + (proximity * 25), now, 0.5);
   } else {
-    // BOTTOMLESS PIT: Brook OFF, industrial glitch hum ON
     brookGain.gain.setTargetAtTime(0.0, now, 0.2);
     abyssDroneGain.gain.setTargetAtTime(1.15, now, 0.3);
 
@@ -402,7 +392,6 @@ function updateAmbientSoundscape(proximity, isAbyss, isPit) {
   }
 }
 
-// Realm-Specific Pickup Sounds
 function playEdenCollectSound() {
   try {
     unlockAudio();
@@ -756,7 +745,7 @@ function processCommand(cmd) {
     logToConsole(`[SYS]: Teleported player to (${Math.round(player.x)}, ${Math.round(player.y)}).`);
     toggleConsole();
   } else if (baseCmd === "clear") {
-    consoleLog.innerText = "SYS_CONSOLE v1.8 [EDEN_ABYSS KERNEL]";
+    consoleLog.innerText = "SYS_CONSOLE v1.9 [EDEN_ABYSS KERNEL]";
   } else if (baseCmd !== "") {
     logToConsole(`[ERROR]: Unknown command '${baseCmd}'. Type 'help' for options.`);
   }
@@ -1031,7 +1020,6 @@ function update(dt) {
     if (subliminalGlyphs[i].life <= 0) subliminalGlyphs.splice(i, 1);
   }
 
-  // Trigger Eden Glitch Flicker + Synchronized Static Sound
   if (!isUpsideDown && score >= 8 && flickerFrames <= 0 && flickerCooldown <= 0) {
     if (Math.random() < 0.035 * dt) {
       if (!hasFlickeredBefore) {
