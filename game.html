@@ -108,7 +108,7 @@
   
   <!-- F1 Console Terminal -->
   <div id="console-overlay">
-    <div id="console-log">SYS_CONSOLE v1.3 [EDEN_ABYSS KERNEL]
+    <div id="console-log">SYS_CONSOLE v1.5 [EDEN_ABYSS KERNEL]
 Type 'help' for available administrative commands. Press [F1] to close.
 --------------------------------------------------</div>
     <div id="console-input-line">
@@ -137,67 +137,150 @@ const consoleInput = document.getElementById("console-input");
 let consoleOpen = false;
 let godMode = false;
 
-// ==================== PROCEDURAL AUDIO ENGINE ====================
+// ==================== CONTINUOUS AMBIENT & UNIQUE SFX ENGINE ====================
 let audioCtx = null;
+let masterGain = null;
+let ambientOsc1 = null;
+let ambientOsc2 = null;
 let lastHeartbeatTime = 0;
-let ambientTimer = 0;
+
+function initAudioEngine() {
+  if (audioCtx) return;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+    masterGain.connect(audioCtx.destination);
+
+    ambientOsc1 = audioCtx.createOscillator();
+    ambientOsc1.type = "sine";
+    ambientOsc1.frequency.setValueAtTime(110, audioCtx.currentTime);
+
+    const osc1Gain = audioCtx.createGain();
+    osc1Gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    ambientOsc1.connect(osc1Gain);
+    osc1Gain.connect(masterGain);
+    ambientOsc1.start();
+
+    ambientOsc2 = audioCtx.createOscillator();
+    ambientOsc2.type = "triangle";
+    ambientOsc2.frequency.setValueAtTime(164.81, audioCtx.currentTime);
+
+    const osc2Gain = audioCtx.createGain();
+    osc2Gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    ambientOsc2.connect(osc2Gain);
+    osc2Gain.connect(masterGain);
+    ambientOsc2.start();
+  } catch (e) {}
+}
 
 function unlockAudio() {
   if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    initAudioEngine();
   }
-  if (audioCtx.state === "suspended") {
+  if (audioCtx && audioCtx.state === "suspended") {
     audioCtx.resume();
   }
 }
 
-// SFX: Item / Seal Collect Chime
-function playCollectSound() {
+function updateAmbientSoundscape(proximity, isAbyss, isPit) {
+  if (!audioCtx || audioCtx.state !== 'running') return;
+  const now = audioCtx.currentTime;
+
+  if (!isAbyss) {
+    ambientOsc1.type = "sine";
+    ambientOsc1.frequency.setTargetAtTime(130.81, now, 1.5);
+    ambientOsc2.frequency.setTargetAtTime(196.00, now, 1.5);
+  } else if (!isPit) {
+    ambientOsc1.type = "triangle";
+    ambientOsc1.frequency.setTargetAtTime(65.41 - (proximity * 15), now, 0.5);
+    ambientOsc2.type = "sawtooth";
+    ambientOsc2.frequency.setTargetAtTime(73.42 + (proximity * 25), now, 0.5);
+  } else {
+    ambientOsc1.type = "sawtooth";
+    ambientOsc1.frequency.setTargetAtTime(55.00 + (proximity * 40), now, 0.2);
+    ambientOsc2.type = "square";
+    ambientOsc2.frequency.setTargetAtTime(82.41 + (proximity * 50), now, 0.2);
+  }
+}
+
+// 1. EDEN GROVE PICKUP: Warm, gentle harmonic fruit chime
+function playEdenCollectSound() {
+  try {
+    unlockAudio();
+    const now = audioCtx.currentTime;
+    [523.25, 659.25, 783.99].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + i * 0.05);
+      gain.gain.setValueAtTime(0.15, now + i * 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start(now + i * 0.05);
+      osc.stop(now + 0.25);
+    });
+  } catch (e) {}
+}
+
+// 2. ABYSS SEAL BREAK: Deep, echoing metallic resonance
+function playAbyssCollectSound() {
   try {
     unlockAudio();
     const now = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(440, now);
-    osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
-
-    gain.gain.setValueAtTime(0.2, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(180, now);
+    osc.frequency.exponentialRampToValueAtTime(60, now + 0.35);
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
     osc.connect(gain);
-    gain.connect(audioCtx.destination);
-
+    gain.connect(masterGain);
     osc.start(now);
-    osc.stop(now + 0.2);
+    osc.stop(now + 0.4);
   } catch (e) {}
 }
 
-// SFX: Death / Jump scare chord
+// 3. BOTTOMLESS PIT CORE SEAL BREAK: Distorted, glitched digital pulse
+function playPitCollectSound() {
+  try {
+    unlockAudio();
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.setValueAtTime(140, now + 0.08);
+    osc.frequency.setValueAtTime(450, now + 0.16);
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start(now);
+    osc.stop(now + 0.3);
+  } catch (e) {}
+}
+
 function playDeathSound() {
   try {
     unlockAudio();
     const now = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-
     osc.type = "sawtooth";
     osc.frequency.setValueAtTime(150, now);
     osc.frequency.linearRampToValueAtTime(40, now + 0.5);
-
     gain.gain.setValueAtTime(0.35, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-
     osc.connect(gain);
-    gain.connect(audioCtx.destination);
-
+    gain.connect(masterGain);
     osc.start(now);
     osc.stop(now + 0.6);
   } catch (e) {}
 }
 
-// SFX: True Ending Celestial Chord
 function playTrueEndingSound() {
   try {
     unlockAudio();
@@ -210,14 +293,13 @@ function playTrueEndingSound() {
       gain.gain.setValueAtTime(0.15, now + i * 0.1);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.5);
       osc.connect(gain);
-      gain.connect(audioCtx.destination);
+      gain.connect(masterGain);
       osc.start(now + i * 0.1);
       osc.stop(now + 2.5);
     });
   } catch (e) {}
 }
 
-// Heartbeat for Chase Phase
 function triggerThump(startTime, freqStart, volume) {
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
@@ -227,7 +309,7 @@ function triggerThump(startTime, freqStart, volume) {
   gain.gain.setValueAtTime(volume, startTime);
   gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.18);
   osc.connect(gain);
-  gain.connect(audioCtx.destination);
+  gain.connect(masterGain);
   osc.start(startTime);
   osc.stop(startTime + 0.19);
 }
@@ -239,49 +321,6 @@ function playHeartbeat(intensity = 1.0) {
     triggerThump(now, 85 * intensity, 0.85);
     triggerThump(now + 0.14, 65 * intensity, 0.65);
   } catch (e) {}
-}
-
-// Ambient Background Music Loop (Updates based on current realm)
-function updateAmbientMusic(dt) {
-  if (!audioCtx || audioCtx.state !== 'running' || gameOver) return;
-  ambientTimer += dt;
-  
-  if (ambientTimer >= 5.5) {
-    ambientTimer = 0;
-    try {
-      const now = audioCtx.currentTime;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-
-      if (!isUpsideDown) {
-        // Peaceful Eden Chords (Major root notes)
-        const notes = [220, 277.18, 329.63, 440];
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(notes[Math.floor(Math.random() * notes.length)], now);
-        gain.gain.setValueAtTime(0.05, now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 4.0);
-      } else if (!isTrueAbyss) {
-        // Dark Abyss Drones (Dissonant minor interval)
-        const notes = [110, 116.54, 130.81];
-        osc.type = "triangle";
-        osc.frequency.setValueAtTime(notes[Math.floor(Math.random() * notes.length)], now);
-        gain.gain.setValueAtTime(0.08, now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 3.5);
-      } else {
-        // Bottomless Pit Industrial Hum
-        const notes = [65.41, 73.42, 82.41];
-        osc.type = "sawtooth";
-        osc.frequency.setValueAtTime(notes[Math.floor(Math.random() * notes.length)], now);
-        gain.gain.setValueAtTime(0.06, now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 3.0);
-      }
-
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start(now);
-      osc.stop(now + 4.0);
-    } catch (e) {}
-  }
 }
 // =================================================================
 
@@ -521,7 +560,7 @@ function processCommand(cmd) {
     logToConsole(`[SYS]: Teleported player to (${Math.round(player.x)}, ${Math.round(player.y)}).`);
     toggleConsole();
   } else if (baseCmd === "clear") {
-    consoleLog.innerText = "SYS_CONSOLE v1.3 [EDEN_ABYSS KERNEL]";
+    consoleLog.innerText = "SYS_CONSOLE v1.5 [EDEN_ABYSS KERNEL]";
   } else if (baseCmd !== "") {
     logToConsole(`[ERROR]: Unknown command '${baseCmd}'. Type 'help' for options.`);
   }
@@ -750,6 +789,8 @@ function updateSanityBorder() {
   const pulseSpeed = (isWatcherFleeing ? 0.3 : 0.08) + proximity * 0.25;
   const pulse = (Math.sin(glitchTimer * pulseSpeed) + 1) / 2;
 
+  updateAmbientSoundscape(proximity, isUpsideDown, isTrueAbyss);
+
   if (isWatcherFleeing) {
     const now = performance.now();
     if (now - lastHeartbeatTime > 520) {
@@ -769,7 +810,9 @@ function updateSanityBorder() {
 function update(dt) {
   if (consoleOpen) return;
 
-  updateAmbientMusic(dt);
+  if (!isUpsideDown) {
+    updateAmbientSoundscape(0, false, false);
+  }
 
   if (shakeTime > 0) shakeTime -= dt * 60;
   if (flickerFrames > 0) flickerFrames -= dt * 60;
@@ -885,8 +928,9 @@ function update(dt) {
   }
 
   if (!isWatcherFleeing && checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
-    playCollectSound();
+    // Play realm-specific pickup sound
     if (!isUpsideDown) {
+      playEdenCollectSound();
       score++;
       scoreText.innerText = `FRUITS GATHERED: ${score} / 20`;
       if (score === 5) {
@@ -904,6 +948,13 @@ function update(dt) {
         spawnItem();
       }
     } else {
+      // Different sounds for Standard Abyss vs Bottomless Pit
+      if (isTrueAbyss) {
+        playPitCollectSound();
+      } else {
+        playAbyssCollectSound();
+      }
+
       eyesCollected++;
       scoreText.innerText = `SEALS BROKEN: ${eyesCollected} / ${targetSeals}`;
       setLore(abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)]);
