@@ -73,7 +73,6 @@ const sigilsText = document.getElementById("sigils");
 canvas.focus();
 canvas.addEventListener("click", () => canvas.focus());
 
-// Persistent ending unlocks
 let unlocked = JSON.parse(localStorage.getItem("eden_abyss_endings")) || {
   eden: false,
   death: false,
@@ -112,12 +111,13 @@ let forbiddenTouches = 0;
 let shakeTime = 0;
 let glitchTimer = 0;
 let flickerFrames = 0;
+let watcherStunTimer = 0;
 
 const player = {
   x: 50,
   y: 200,
   size: 20,
-  speed: 2.0
+  speed: 2.05
 };
 
 let item = {
@@ -126,7 +126,6 @@ let item = {
   size: 14
 };
 
-// Secret 4th Ending Forbidden Fruit (appears only after all 3 base endings are unlocked)
 const forbiddenFruit = {
   x: 495,
   y: 205,
@@ -160,7 +159,7 @@ const watcher = {
   x: 550,
   y: 50,
   size: 28,
-  speed: 1.25
+  baseSpeed: 1.15
 };
 
 const abyssLore = [
@@ -205,6 +204,11 @@ function spawnItem() {
       if (checkCollision(item.x, item.y, item.size, item.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
         valid = false;
       }
+    } else {
+      // Avoid spawning an eye directly on top of the Watcher
+      if (Math.hypot(item.x - watcher.x, item.y - watcher.y) < 90) {
+        valid = false;
+      }
     }
   }
 }
@@ -214,12 +218,13 @@ function triggerUpsideDown(trueMode = false) {
   isTrueAbyss = trueMode;
   targetSeals = trueMode ? 9 : 6;
   shakeTime = trueMode ? 70 : 45;
+  watcherStunTimer = 45; // Brief head start when entering the Abyss
   score = 0;
   player.x = 60;
   player.y = 200;
   watcher.x = 540;
   watcher.y = 200;
-  watcher.speed = trueMode ? 1.45 : 1.25;
+  watcher.baseSpeed = trueMode ? 1.25 : 1.1;
   
   realmText.innerText = trueMode ? "REALM: THE BOTTOMLESS PIT" : "REALM: SHEOL // THE ABYSS";
   realmText.style.color = "#ff2a2a";
@@ -269,15 +274,14 @@ function resetGame() {
   forbiddenTouches = 0;
   shakeTime = 0;
   flickerFrames = 0;
+  watcherStunTimer = 0;
   player.x = 50;
   player.y = 200;
-  watcher.speed = 1.25;
+  watcher.baseSpeed = 1.1;
   
-  // Reset sanity border
   canvas.style.borderColor = "#333";
   canvas.style.boxShadow = "0 0 20px rgba(0,0,0,0.8)";
 
-  // Check if 4th ending path is unlocked
   forbiddenFruit.active = allBaseEndingsUnlocked();
   
   realmText.innerText = "REALM: EDEN'S GROVE";
@@ -324,7 +328,6 @@ function updateSanityBorder() {
   }
 
   const dist = Math.hypot(player.x - watcher.x, player.y - watcher.y);
-  // Proximity goes from 0 (far: >350px) to 1 (touching: <30px)
   const proximity = Math.max(0, Math.min(1, 1 - (dist - 30) / 320));
   const pulseSpeed = 0.08 + proximity * 0.25;
   const pulse = (Math.sin(glitchTimer * pulseSpeed) + 1) / 2;
@@ -340,9 +343,9 @@ function updateSanityBorder() {
 function update() {
   if (shakeTime > 0) shakeTime--;
   if (flickerFrames > 0) flickerFrames--;
+  if (watcherStunTimer > 0) watcherStunTimer--;
   if (gameOver) return;
 
-  // Trigger random 1-2 frame subliminal flickers in Eden once 8+ fruits are gathered
   if (!isUpsideDown && score >= 8 && flickerFrames === 0 && Math.random() < 0.004) {
     flickerFrames = 2;
   }
@@ -397,7 +400,6 @@ function update() {
     handleAnomalyTouch();
   }
 
-  // Check secret 4th ending Forbidden Fruit pickup
   if (!isUpsideDown && forbiddenFruit.active) {
     if (checkCollision(player.x, player.y, player.size, player.size, forbiddenFruit.x, forbiddenFruit.y, forbiddenFruit.size, forbiddenFruit.size)) {
       forbiddenFruit.active = false;
@@ -406,7 +408,6 @@ function update() {
     }
   }
 
-  // Standard collectible collision
   if (checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
     if (!isUpsideDown) {
       score++;
@@ -429,7 +430,10 @@ function update() {
       eyesCollected++;
       scoreText.innerText = `SEALS BROKEN: ${eyesCollected} / ${targetSeals}`;
       loreBox.innerText = abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)];
-      watcher.speed += isTrueAbyss ? 0.18 : 0.2;
+      
+      // Gentle speed scaling + brief stun on seal break for close-call escapes
+      watcher.baseSpeed += isTrueAbyss ? 0.08 : 0.09;
+      watcherStunTimer = 36; 
       shakeTime = 20;
       
       if (eyesCollected >= targetSeals) {
@@ -452,12 +456,35 @@ function update() {
     const dx = player.x - watcher.x;
     const dy = player.y - watcher.y;
     const dist = Math.hypot(dx, dy);
+
     if (dist > 0) {
-      watcher.x += (dx / dist) * watcher.speed;
-      watcher.y += (dy / dist) * watcher.speed;
+      // Rubber-banding speed: rushes in from afar, slightly eases up when right on your heels
+      let dynamicSpeed = watcher.baseSpeed;
+      if (dist > 220) {
+        dynamicSpeed += 0.65; // Closes distance quickly so it's never off-screen for long
+      } else if (dist < 85) {
+        dynamicSpeed -= 0.15; // Gives you a fair chance to juke/dodge at the last second
+      }
+
+      // Cap max speed so player can always out-maneuver it
+      const maxCap = isTrueAbyss ? 1.82 : 1.72;
+      dynamicSpeed = Math.min(dynamicSpeed, maxCap);
+
+      // Slow to a crawl if briefly stunned by a broken seal
+      if (watcherStunTimer > 0) {
+        dynamicSpeed *= 0.25;
+      }
+
+      watcher.x += (dx / dist) * dynamicSpeed;
+      watcher.y += (dy / dist) * dynamicSpeed;
     }
 
-    if (checkCollision(player.x, player.y, player.size, player.size, watcher.x, watcher.y, watcher.size, watcher.size)) {
+    // Forgiving hitbox (4px padding on each side) so grazing the outer rings feels thrilling
+    const pad = 4;
+    if (checkCollision(
+      player.x, player.y, player.size, player.size,
+      watcher.x + pad, watcher.y + pad, watcher.size - pad * 2, watcher.size - pad * 2
+    )) {
       gameOver = true;
       won = false;
       saveEnding("death");
@@ -472,9 +499,11 @@ function update() {
 function drawWatcher(wx, wy, wsize) {
   ctx.save();
   ctx.translate(wx + wsize / 2, wy + wsize / 2);
-  ctx.rotate(glitchTimer * 0.05);
+  // Spin slower when briefly stunned by a broken seal
+  const rotSpeed = watcherStunTimer > 0 ? 0.015 : 0.05;
+  ctx.rotate(glitchTimer * rotSpeed);
   
-  ctx.strokeStyle = "#ff1744";
+  ctx.strokeStyle = watcherStunTimer > 0 ? "#ff8a80" : "#ff1744";
   ctx.lineWidth = 2;
   ctx.strokeRect(-18, -18, 36, 36);
   ctx.rotate(Math.PI / 4);
@@ -503,7 +532,6 @@ function draw() {
   if (!isUpsideDown) {
     const isFlickering = flickerFrames > 0;
 
-    // Ground flashes pitch-dark crimson during subliminal flicker
     ctx.fillStyle = isFlickering ? "#140404" : "#558b2f";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -512,7 +540,6 @@ function draw() {
       ctx.fillRect((i * 59) % 580, (i * 83) % 380, 4, 4);
     }
 
-    // Golden Apple briefly turns into a staring eye during flicker
     if (isFlickering) {
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
@@ -529,7 +556,6 @@ function draw() {
       ctx.fill();
     }
 
-    // Draw secret 4th ending Forbidden Fruit if unlocked
     if (forbiddenFruit.active) {
       const glow = 5 + Math.sin(glitchTimer * 0.1) * 2;
       ctx.fillStyle = "rgba(255, 23, 68, 0.35)";
@@ -543,7 +569,6 @@ function draw() {
       ctx.fill();
     }
 
-    // Subliminal Watcher silhouette right behind the eastern tree during flicker
     if (isFlickering) {
       drawWatcher(anomaly.x - 15, anomaly.y - 10, 28);
     }
@@ -577,7 +602,12 @@ function draw() {
       ctx.fillRect(0, Math.random() * canvas.height, canvas.width, 4);
     }
 
-    // Collectible: The Ophanim Eye
+    // Brief white flash overlay when a seal breaks and stuns the Watcher
+    if (watcherStunTimer > 28) {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
     ctx.ellipse(item.x + 7, item.y + 7, 10, 6, 0, 0, Math.PI * 2);
@@ -662,7 +692,6 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-// Initialize HUD sigils on load
 updateSigilHUD();
 loop();
 </script>
