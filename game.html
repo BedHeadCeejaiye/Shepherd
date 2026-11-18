@@ -178,7 +178,7 @@ function checkCollision(ax, ay, aw, ah, bx, by, bw, bh) {
 }
 
 function update() {
-  // Allow shake to process even if game just ended
+  // Always tick down shakeTime if it's active, even if game is over
   if (shakeTime > 0) shakeTime--;
   if (gameOver) return;
 
@@ -203,12 +203,12 @@ function update() {
       scoreText.innerText = `SEALS BROKEN: ${eyesCollected} / 6`;
       loreBox.innerText = abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)];
       watcher.speed += 0.2;
-      shakeTime = 15;
+      shakeTime = 20;
       
       if (eyesCollected >= 6) {
         gameOver = true;
         won = true;
-        shakeTime = 30; // Shake on winning too!
+        shakeTime = 9999; // Keep shaking on win screen
       } else {
         spawnItem();
       }
@@ -240,11 +240,10 @@ function update() {
       watcher.y += (dy / dist) * watcher.speed;
     }
 
-    // Check if The Watcher catches the player
     if (checkCollision(player.x, player.y, player.size, player.size, watcher.x, watcher.y, watcher.size, watcher.size)) {
       gameOver = true;
       won = false;
-      shakeTime = 40;
+      shakeTime = 9999; // Continuous intense shake on death screen until you press R
     }
   }
 
@@ -254,10 +253,9 @@ function update() {
 function draw() {
   ctx.save();
 
-  // Screen Shake effect calculation (larger offset magnitude for getting caught)
   if (shakeTime > 0) {
-    const dx = (Math.random() - 0.5) * 16;
-    const dy = (Math.random() - 0.5) * 16;
+    const dx = (Math.random() - 0.5) * 14;
+    const dy = (Math.random() - 0.5) * 14;
     ctx.translate(dx, dy);
   }
 
