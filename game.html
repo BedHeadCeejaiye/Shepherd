@@ -36,6 +36,17 @@
     font-size: 12px;
     color: #555;
   }
+  #volume-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #a8e6cf;
+  }
+  #volume-slider {
+    width: 80px;
+    cursor: pointer;
+  }
   #lore-box {
     width: 580px;
     min-height: 45px;
@@ -99,6 +110,10 @@
 
 <div id="hud">
   <span id="score-text">FRUITS GATHERED: 0 / 20</span>
+  <div id="volume-container">
+    <span>VOL:</span>
+    <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.35">
+  </div>
   <span id="sigils" title="Unlocked Endings">[---] [---] [---]</span>
   <span id="realm-text" style="color: #a8e6cf;">REALM: EDEN'S GROVE</span>
 </div>
@@ -108,7 +123,7 @@
   
   <!-- F1 Console Terminal -->
   <div id="console-overlay">
-    <div id="console-log">SYS_CONSOLE v1.5 [EDEN_ABYSS KERNEL]
+    <div id="console-log">SYS_CONSOLE v1.6 [EDEN_ABYSS KERNEL]
 Type 'help' for available administrative commands. Press [F1] to close.
 --------------------------------------------------</div>
     <div id="console-input-line">
@@ -129,6 +144,7 @@ const scoreText = document.getElementById("score-text");
 const realmText = document.getElementById("realm-text");
 const loreBox = document.getElementById("lore-box");
 const sigilsText = document.getElementById("sigils");
+const volumeSlider = document.getElementById("volume-slider");
 
 const consoleOverlay = document.getElementById("console-overlay");
 const consoleLog = document.getElementById("console-log");
@@ -137,7 +153,7 @@ const consoleInput = document.getElementById("console-input");
 let consoleOpen = false;
 let godMode = false;
 
-// ==================== CONTINUOUS AMBIENT & UNIQUE SFX ENGINE ====================
+// ==================== STRICT REALM AMBIENT & AUDIO ENGINE ====================
 let audioCtx = null;
 let masterGain = null;
 let ambientOsc1 = null;
@@ -149,25 +165,25 @@ function initAudioEngine() {
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     masterGain = audioCtx.createGain();
-    masterGain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+    masterGain.gain.setValueAtTime(parseFloat(volumeSlider.value), audioCtx.currentTime);
     masterGain.connect(audioCtx.destination);
 
     ambientOsc1 = audioCtx.createOscillator();
     ambientOsc1.type = "sine";
-    ambientOsc1.frequency.setValueAtTime(110, audioCtx.currentTime);
+    ambientOsc1.frequency.setValueAtTime(130.81, audioCtx.currentTime); // C3
 
     const osc1Gain = audioCtx.createGain();
-    osc1Gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    osc1Gain.gain.setValueAtTime(0.09, audioCtx.currentTime);
     ambientOsc1.connect(osc1Gain);
     osc1Gain.connect(masterGain);
     ambientOsc1.start();
 
     ambientOsc2 = audioCtx.createOscillator();
     ambientOsc2.type = "triangle";
-    ambientOsc2.frequency.setValueAtTime(164.81, audioCtx.currentTime);
+    ambientOsc2.frequency.setValueAtTime(196.00, audioCtx.currentTime); // G3
 
     const osc2Gain = audioCtx.createGain();
-    osc2Gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    osc2Gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
     ambientOsc2.connect(osc2Gain);
     osc2Gain.connect(masterGain);
     ambientOsc2.start();
@@ -183,20 +199,32 @@ function unlockAudio() {
   }
 }
 
+// Volume slider control
+volumeSlider.addEventListener("input", (e) => {
+  if (masterGain && audioCtx) {
+    masterGain.gain.setValueAtTime(parseFloat(e.target.value), audioCtx.currentTime);
+  }
+});
+
+// Strictly isolates audio per dimension
 function updateAmbientSoundscape(proximity, isAbyss, isPit) {
   if (!audioCtx || audioCtx.state !== 'running') return;
   const now = audioCtx.currentTime;
 
   if (!isAbyss) {
+    // EDEN'S GROVE: Eerie yet peaceful (Suspended floating 5th interval with a haunting undertone)
     ambientOsc1.type = "sine";
-    ambientOsc1.frequency.setTargetAtTime(130.81, now, 1.5);
-    ambientOsc2.frequency.setTargetAtTime(196.00, now, 1.5);
+    ambientOsc1.frequency.setTargetAtTime(130.81, now, 1.0); // C3
+    ambientOsc2.type = "triangle";
+    ambientOsc2.frequency.setTargetAtTime(246.94, now, 1.0); // B3 (dreamy/uneasy harmonic)
   } else if (!isPit) {
+    // SHEOL // ABYSS: Ominous deep drone
     ambientOsc1.type = "triangle";
     ambientOsc1.frequency.setTargetAtTime(65.41 - (proximity * 15), now, 0.5);
     ambientOsc2.type = "sawtooth";
     ambientOsc2.frequency.setTargetAtTime(73.42 + (proximity * 25), now, 0.5);
   } else {
+    // BOTTOMLESS PIT: Aggressive industrial glitch hum
     ambientOsc1.type = "sawtooth";
     ambientOsc1.frequency.setTargetAtTime(55.00 + (proximity * 40), now, 0.2);
     ambientOsc2.type = "square";
@@ -204,7 +232,7 @@ function updateAmbientSoundscape(proximity, isAbyss, isPit) {
   }
 }
 
-// 1. EDEN GROVE PICKUP: Warm, gentle harmonic fruit chime
+// Realm-Specific Pickup Sounds
 function playEdenCollectSound() {
   try {
     unlockAudio();
@@ -214,7 +242,7 @@ function playEdenCollectSound() {
       const gain = audioCtx.createGain();
       osc.type = "sine";
       osc.frequency.setValueAtTime(freq, now + i * 0.05);
-      gain.gain.setValueAtTime(0.15, now + i * 0.05);
+      gain.gain.setValueAtTime(0.12, now + i * 0.05);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
       osc.connect(gain);
       gain.connect(masterGain);
@@ -224,7 +252,6 @@ function playEdenCollectSound() {
   } catch (e) {}
 }
 
-// 2. ABYSS SEAL BREAK: Deep, echoing metallic resonance
 function playAbyssCollectSound() {
   try {
     unlockAudio();
@@ -234,7 +261,7 @@ function playAbyssCollectSound() {
     osc.type = "triangle";
     osc.frequency.setValueAtTime(180, now);
     osc.frequency.exponentialRampToValueAtTime(60, now + 0.35);
-    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.setValueAtTime(0.25, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
     osc.connect(gain);
     gain.connect(masterGain);
@@ -243,7 +270,6 @@ function playAbyssCollectSound() {
   } catch (e) {}
 }
 
-// 3. BOTTOMLESS PIT CORE SEAL BREAK: Distorted, glitched digital pulse
 function playPitCollectSound() {
   try {
     unlockAudio();
@@ -254,7 +280,7 @@ function playPitCollectSound() {
     osc.frequency.setValueAtTime(320, now);
     osc.frequency.setValueAtTime(140, now + 0.08);
     osc.frequency.setValueAtTime(450, now + 0.16);
-    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.setValueAtTime(0.2, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
     osc.connect(gain);
     gain.connect(masterGain);
@@ -272,7 +298,7 @@ function playDeathSound() {
     osc.type = "sawtooth";
     osc.frequency.setValueAtTime(150, now);
     osc.frequency.linearRampToValueAtTime(40, now + 0.5);
-    gain.gain.setValueAtTime(0.35, now);
+    gain.gain.setValueAtTime(0.3, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
     osc.connect(gain);
     gain.connect(masterGain);
@@ -290,7 +316,7 @@ function playTrueEndingSound() {
       const gain = audioCtx.createGain();
       osc.type = "sine";
       osc.frequency.setValueAtTime(freq, now + i * 0.1);
-      gain.gain.setValueAtTime(0.15, now + i * 0.1);
+      gain.gain.setValueAtTime(0.12, now + i * 0.1);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.5);
       osc.connect(gain);
       gain.connect(masterGain);
@@ -318,8 +344,8 @@ function playHeartbeat(intensity = 1.0) {
   try {
     unlockAudio();
     const now = audioCtx.currentTime;
-    triggerThump(now, 85 * intensity, 0.85);
-    triggerThump(now + 0.14, 65 * intensity, 0.65);
+    triggerThump(now, 85 * intensity, 0.75);
+    triggerThump(now + 0.14, 65 * intensity, 0.55);
   } catch (e) {}
 }
 // =================================================================
@@ -560,7 +586,7 @@ function processCommand(cmd) {
     logToConsole(`[SYS]: Teleported player to (${Math.round(player.x)}, ${Math.round(player.y)}).`);
     toggleConsole();
   } else if (baseCmd === "clear") {
-    consoleLog.innerText = "SYS_CONSOLE v1.5 [EDEN_ABYSS KERNEL]";
+    consoleLog.innerText = "SYS_CONSOLE v1.6 [EDEN_ABYSS KERNEL]";
   } else if (baseCmd !== "") {
     logToConsole(`[ERROR]: Unknown command '${baseCmd}'. Type 'help' for options.`);
   }
@@ -928,7 +954,6 @@ function update(dt) {
   }
 
   if (!isWatcherFleeing && checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
-    // Play realm-specific pickup sound
     if (!isUpsideDown) {
       playEdenCollectSound();
       score++;
@@ -948,7 +973,6 @@ function update(dt) {
         spawnItem();
       }
     } else {
-      // Different sounds for Standard Abyss vs Bottomless Pit
       if (isTrueAbyss) {
         playPitCollectSound();
       } else {
