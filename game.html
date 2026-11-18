@@ -137,47 +137,58 @@
     transition: all 0.3s ease;
   }
 
-  /* Progressive Lore Codex Modal Overlay */
+  /* Torn Book / Parchment Codex Modal Overlay */
   #codex-overlay {
     position: absolute;
     top: 20px;
     left: 20px;
     width: 560px;
     height: 360px;
-    background: rgba(12, 16, 22, 0.97);
-    border: 2px solid #a8e6cf;
-    box-shadow: 0 0 25px rgba(168, 230, 207, 0.25);
+    background: #141210;
+    border: 3px ridge #5c4033;
+    box-shadow: 0 0 30px rgba(92, 64, 51, 0.5);
     display: none;
     flex-direction: column;
     padding: 15px;
     box-sizing: border-box;
     z-index: 100;
     font-family: 'Courier New', Courier, monospace;
+    background-image: radial-gradient(circle, #211c18 0%, #0d0b09 100%);
   }
   #codex-header {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: bold;
-    color: #a8e6cf;
-    border-bottom: 1px solid #333;
+    color: #d4a373;
+    border-bottom: 1px dashed #5c4033;
     padding-bottom: 6px;
     margin-bottom: 10px;
     display: flex;
     justify-content: space-between;
+    letter-spacing: 1px;
   }
   #codex-content {
     flex-grow: 1;
     overflow-y: auto;
     font-size: 12px;
-    color: #d0d0d0;
-    line-height: 1.5;
+    color: #bc6c25;
+    line-height: 1.6;
     white-space: pre-wrap;
+    padding-right: 5px;
+  }
+  #codex-content::-webkit-scrollbar {
+    width: 6px;
+  }
+  #codex-content::-webkit-scrollbar-thumb {
+    background: #5c4033;
+    border-radius: 3px;
   }
   #codex-footer {
-    border-top: 1px solid #333;
+    border-top: 1px dashed #5c4033;
     padding-top: 6px;
-    font-size: 11px;
-    color: #777;
+    font-size: 10px;
+    color: #8d6e63;
     text-align: center;
+    letter-spacing: 1px;
   }
 
   /* Developer Console Overlay */
@@ -255,14 +266,14 @@
   <div id="game-wrapper">
     <canvas id="gameCanvas" width="600" height="400" tabindex="0"></canvas>
     
-    <!-- Progressive Lore Codex Overlay (Press C) -->
+    <!-- Torn Book / Parchment Codex Overlay (Press C) -->
     <div id="codex-overlay">
       <div id="codex-header">
-        <span>ARCHIVES // DECODED SYSTEM LOGS</span>
-        <span style="cursor: pointer;" onclick="toggleCodex()">[CLOSE]</span>
+        <span>~ TORN FRAGMENTS OF THE MANUSCRIPT ~</span>
+        <span style="cursor: pointer; color: #dda15e;" onclick="toggleCodex()">[CLOSE]</span>
       </div>
-      <div id="codex-content">Initializing memory banks...</div>
-      <div id="codex-footer">Press [C] or click [CLOSE] to return to simulation.</div>
+      <div id="codex-content">Unraveling the parchment...</div>
+      <div id="codex-footer">Press [C] or click [CLOSE] to return to the path.</div>
     </div>
 
     <!-- F1 Console Terminal -->
@@ -651,10 +662,11 @@ function updateSigilHUD() {
   const s3 = unlocked.revelation ? "<span style='color:#ffd700'>[EYE]</span>" : "[---]";
   sigilsText.innerHTML = `${s1} ${s2} ${s3}`;
 
+  // Crown is strictly hidden until the 4th true hidden ending is achieved
   if (unlocked.trueEnd) {
     crownSigil.innerHTML = "<span style='color:#ff1744'>[CROWN]</span>";
   } else {
-    crownSigil.innerHTML = "<span style='color:#555;'>[---]</span>";
+    crownSigil.innerHTML = "";
   }
 }
 
@@ -791,45 +803,41 @@ function toggleCodex() {
   if (codexOpen) {
     if (consoleOpen) toggleConsole();
     
-    let logText = "=== SIMULATION ARCHIVES // DECODED LOGS ===\n\n";
+    let manuscript = "--- TORN MANUSCRIPT FRAGMENTS ---\n\n";
     
-    logText += "[LOG 01: EDEN'S GROVE // THE SANDBOX]\n";
+    // Fragment I: Eden
+    manuscript += "[ FRAGMENT I: THE GREEN PASTURE ]\n";
     if (unlocked.eden) {
-      logText += "Status: DECODED ([LEAF])\n";
-      logText += "Notes: A closed-loop simulation designed for absolute compliance. Psalm 23 scripts govern your routine. Gathering 20 fruits proves obedience to the Architect.\n\n";
+      manuscript += "  'We walked upon carpets of seamless green, gathering sweet fruit under an unchanging sky. We thought this was creation itself—a endless loop of quiet grace. But the grass felt too soft, the horizon too abrupt. It was a cage woven from psalm and silence, keeping us blind to the machinery beneath.'\n\n";
     } else {
-      logText += "Status: [LOCKED]\n";
-      logText += "Hint: Complete the 20-fruit harvest in Eden's Grove without triggering anomalies.\n\n";
+      manuscript += "  * [ The parchment is blank and torn here. Complete the 20-fruit harvest in Eden to reveal its secret... ] *\n\n";
     }
 
-    logText += "[LOG 02: THE FIREWALL // THE WATCHER]\n";
+    // Fragment II: The Watcher / Void
+    manuscript += "[ FRAGMENT II: THE FLAMING SWORD ]\n";
     if (unlocked.death) {
-      logText += "Status: DECODED ([VOID])\n";
-      logText += "Notes: Not a demon, but an automated security daemon (Genesis 3:24). Its geometric rings and flaming square scan for unauthorized human recursion. Perishing to it logs your failure in outer darkness.\n\n";
+      manuscript += "  'At the eastern edge, the cold bark bled black sap. When our curiosity breached the boundary, the peace shattered. The Watcher came—not with hatred, but with geometric coldness. It is the sentinel of Eden, woven from thousand-eyed rings and fire, tasked with dragging wanderers into outer darkness.'\n\n";
     } else {
-      logText += "Status: [LOCKED]\n";
-      logText += "Hint: Provoke the cold anomaly tree at the eastern edge and let The Watcher catch you.\n\n";
+      manuscript += "  * [ The text is charred and unreadable. Touch the cold anomaly tree and let the guardian claim you... ] *\n\n";
     }
 
-    logText += "[LOG 03: THE BASEMENT // SHEOL // THE ABYSS]\n";
+    // Fragment III: The Abyss
+    manuscript += "[ FRAGMENT III: THE BASEMENT OF SHEOL ]\n";
     if (unlocked.revelation) {
-      logText += "Status: DECODED ([EYE])\n";
-      logText += "Notes: The memory leak beneath the render bounds. Raw hex code and ancient judgment fragments (Job, Revelation). Shattering all 6 seals proves endurance past the simulation's safety protocols.\n\n";
+      manuscript += "  'To fall is not to perish; it is to wake up. Below the green illusion lies Sheol—a vast, weeping expanse of raw code and ancient judgment. We collected the shattered seals, discovering that every forgotten soul and erased timeline collects here in the dark. The abyss is the truth the garden tried to hide.'\n\n";
     } else {
-      logText += "Status: [LOCKED]\n";
-      logText += "Hint: Fall into the abyss and break all 6 seals before time expires.\n\n";
+      manuscript += "  * [ The ink has smudged into black ash. Fall into the abyss and shatter all 6 seals... ] *\n\text";
     }
 
-    logText += "[LOG 04: ROOT ACCESS // THE BOTTOMLESS PIT]\n";
+    // Fragment IV: The Crown
+    manuscript += "[ FRAGMENT IV: THE EIGHTH DAY ]\n";
     if (unlocked.trueEnd) {
-      logText += "Status: DECODED ([CROWN])\n";
-      logText += "Notes: memory_addr: 0x7fff5fbff800. You did not escape the garden; you consumed the firewall daemon. You are now the system administrator.\n";
+      manuscript += "  'And when the bottomless pit opened its jaws, we did not run. We hunted the watcher down. In consuming the core, the simulation collapsed into our hands. We are no longer sheep in the pasture, nor wanderers in the dark. We hold the syntax. We are the architects now.'\n";
     } else {
-      logText += "Status: [LOCKED]\n";
-      logText += "Hint: Unlock the three base sigils, consume the forbidden crimson fruit, and hunt down The Watcher.\n";
+      manuscript += "  * [ A heavy, sealed wax stamp blocks the final pages. Unlock the three base truths, eat the forbidden fruit, and consume the watcher... ] *\n";
     }
 
-    codexContent.innerText = logText;
+    codexContent.innerText = manuscript;
     codexOverlay.style.display = "flex";
   } else {
     codexOverlay.style.display = "none";
@@ -845,7 +853,7 @@ function processCommand(cmd) {
   if (baseCmd === "help") {
     logToConsole(
       "AVAILABLE COMMANDS:\n" +
-      " - lore: Opens the progressive Codex archive window\n" +
+      " - lore: Unfurls the torn manuscript codex\n" +
       " - reset: Wipes all unlocked endings in localStorage\n" +
       " - abyss: Instantly triggers the standard Abyss realm\n" +
       " - trueabyss: Instantly triggers the Bottomless Pit\n" +
