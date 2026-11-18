@@ -183,6 +183,7 @@ let flickerFrames = 0;
 let watcherStunTimer = 0;
 let flickerCooldown = 0;
 let hasFlickeredBefore = false;
+let isWatcherFleeing = false; // Inverse Shepherd State
 
 // Paranoia State Variables (Real-Time Based)
 let playerStillTimer = performance.now();
@@ -238,7 +239,7 @@ const watcher = {
   x: 550,
   y: 50,
   size: 28,
-  baseSpeed: 330 // High, unyielding hunting speed
+  baseSpeed: 330
 };
 
 const abyssLore = [
@@ -450,6 +451,7 @@ function triggerUpsideDown(trueMode = false) {
   score = 0;
   playerStillTimer = performance.now();
   isWhispering = false;
+  isWatcherFleeing = false;
   phantomItem.active = false;
   player.x = 60;
   player.y = 200;
@@ -508,6 +510,7 @@ function resetGame() {
   watcherStunTimer = 0;
   flickerCooldown = 0;
   hasFlickeredBefore = false;
+  isWatcherFleeing = false;
   playerStillTimer = performance.now();
   isWhispering = false;
   phantomItem.active = false;
@@ -701,21 +704,24 @@ function update(dt) {
       scoreText.innerText = `SEALS BROKEN: ${eyesCollected} / ${targetSeals}`;
       setLore(abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)]);
       
-      watcher.baseSpeed += isTrueAbyss ? 18 : 20; // Relentless speed scaling per seal
+      watcher.baseSpeed += isTrueAbyss ? 18 : 20;
       watcherStunTimer = 36; 
       shakeTime = 20;
       phantomItem.active = false;
       
       if (eyesCollected >= targetSeals) {
-        gameOver = true;
-        if (isTrueAbyss) {
-          trueWon = true;
-          saveEnding("trueEnd");
-        } else {
+        if (isTrueAbyss && !isWatcherFleeing) {
+          // Trigger Inverse Shepherd phase!
+          isWatcherFleeing = true;
+          watcher.baseSpeed = 380; // You must hunt it down
+          setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
+          shakeTime = 40;
+        } else if (!isTrueAbyss) {
+          gameOver = true;
           won = true;
           saveEnding("revelation");
+          shakeTime = 9999;
         }
-        shakeTime = 9999;
       } else {
         spawnItem();
       }
@@ -743,18 +749,36 @@ function update(dt) {
     const dist = Math.hypot(dx, dy);
 
     if (dist > 0) {
-      let dynamicSpeed = watcher.baseSpeed; // Constant, high-speed unyielding pursuit
+      let dynamicSpeed = watcher.baseSpeed;
 
-      if (watcherStunTimer > 0) {
-        dynamicSpeed *= 0.25;
+      if (isWatcherFleeing) {
+        // FLEE FROM PLAYER: The Watcher runs away from you!
+        watcher.x -= (dx / dist) * dynamicSpeed * dt;
+        watcher.y -= (dy / dist) * dynamicSpeed * dt;
+        watcher.x = Math.max(20, Math.min(canvas.width - 40, watcher.x));
+        watcher.y = Math.max(20, Math.min(canvas.height - 40, watcher.y));
+      } else {
+        if (watcherStunTimer > 0) {
+          dynamicSpeed *= 0.25;
+        }
+        watcher.x += (dx / dist) * dynamicSpeed * dt;
+        watcher.y += (dy / dist) * dynamicSpeed * dt;
       }
+    }
 
-      watcher.x += (dx / dist) * dynamicSpeed * dt;
-      watcher.y += (dy / dist) * dynamicSpeed * dt;
+    // If you catch the fleeing Watcher in True Abyss, you achieve the True Ending!
+    if (isWatcherFleeing && checkCollision(
+      player.x, player.y, player.size, player.size,
+      watcher.x, watcher.y, watcher.size, watcher.size
+    )) {
+      gameOver = true;
+      trueWon = true;
+      saveEnding("trueEnd");
+      shakeTime = 9999;
     }
 
     const pad = 4;
-    if (!godMode && checkCollision(
+    if (!isWatcherFleeing && !godMode && checkCollision(
       player.x, player.y, player.size, player.size,
       watcher.x + pad, watcher.y + pad, watcher.size - pad * 2, watcher.size - pad * 2
     )) {
@@ -769,19 +793,19 @@ function update(dt) {
   glitchTimer += dt * 60;
 }
 
-function drawWatcher(wx, wy, wsize) {
+function drawWatcher(wx, wy, wsize, fleeing = false) {
   ctx.save();
   ctx.translate(wx + wsize / 2, wy + wsize / 2);
-  const rotSpeed = watcherStunTimer > 0 ? 0.015 : 0.05;
+  const rotSpeed = watcherStunTimer > 0 ? 0.015 : (fleeing ? 0.12 : 0.05);
   ctx.rotate(glitchTimer * rotSpeed);
   
-  ctx.strokeStyle = watcherStunTimer > 0 ? "#ff8a80" : "#ff1744";
+  ctx.strokeStyle = fleeing ? "#ffffff" : (watcherStunTimer > 0 ? "#ff8a80" : "#ff1744");
   ctx.lineWidth = 2;
   ctx.strokeRect(-18, -18, 36, 36);
   ctx.rotate(Math.PI / 4);
   ctx.strokeRect(-18, -18, 36, 36);
 
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = fleeing ? "#ff1744" : "#ffffff";
   ctx.beginPath();
   ctx.arc(0, 0, 7, 0, Math.PI * 2);
   ctx.fill();
@@ -904,7 +928,7 @@ function draw() {
     ctx.fillStyle = godMode ? "#ffd700" : "#b0bec5";
     ctx.fillRect(player.x, player.y, player.size, player.size);
 
-    drawWatcher(watcher.x, watcher.y, watcher.size);
+    drawWatcher(watcher.x, watcher.y, watcher.size, isWatcherFleeing);
 
     const visionRadius = isTrueAbyss ? 175 : 210;
     const gradient = ctx.createRadialGradient(
@@ -933,17 +957,29 @@ function draw() {
       ctx.font = "12px Courier New";
       ctx.fillText("Press [R] to replay... but something feels off.", canvas.width / 2, 235);
     } else if (trueWon) {
-      ctx.fillStyle = "rgba(15, 0, 0, 0.93)";
+      ctx.fillStyle = "rgba(5, 2, 8, 0.96)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Procedural shadow eyes expanding on the victory screen
+      ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2, canvas.height / 2, 40 + i * 35, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       ctx.fillStyle = "#ff1744";
-      ctx.font = "bold 24px Courier New";
-      ctx.fillText("THE SEVENTH SEAL UNDONE", canvas.width / 2, 150);
-      ctx.fillStyle = "#e0e0e0";
-      ctx.font = "13px Courier New";
-      ctx.fillText("Eden and Sheol are one. You inherited the throne of eyes.", canvas.width / 2, 185);
+      ctx.font = "bold 18px Courier New";
+      ctx.fillText("[THE EIGHTH DAY // ROOT ACCESS GRANTED]", canvas.width / 2, 130);
+      
+      ctx.fillStyle = "#a8e6cf";
+      ctx.font = "11px Courier New";
+      ctx.fillText("memory_addr: 0x7fff5fbff800 -- status: WATCHER CONSUMED", canvas.width / 2, 165);
+      ctx.fillText("You did not escape the garden. You rewrote its syntax.", canvas.width / 2, 195);
+      
       ctx.fillStyle = "#888888";
       ctx.font = "12px Courier New";
-      ctx.fillText("Press [R] to walk the garden once more.", canvas.width / 2, 235);
+      ctx.fillText("Press [R] to re-compile reality.", canvas.width / 2, 245);
     } else if (won) {
       ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
