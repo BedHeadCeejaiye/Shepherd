@@ -1285,7 +1285,9 @@ function drawWatcher(wx, wy, wsize, fleeing = false) {
 
   ctx.save();
   ctx.translate(wx + wsize / 2, wy + wsize / 2);
-  const rotSpeed = watcherStunTimer > 0 ? 0.015 : (fleeing ? 0.25 : 0.05);
+  
+  // UPDATED: Faster rotation speeds here
+  const rotSpeed = watcherStunTimer > 0 ? 0.03 : (fleeing ? 0.45 : 0.12);
   ctx.rotate(glitchTimer * rotSpeed);
   
   ctx.strokeStyle = fleeing ? "#ffffff" : (watcherStunTimer > 0 ? "#ff8a80" : "#ff1744");
