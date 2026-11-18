@@ -662,7 +662,6 @@ function updateSigilHUD() {
   const s3 = unlocked.revelation ? "<span style='color:#ffd700'>[EYE]</span>" : "[---]";
   sigilsText.innerHTML = `${s1} ${s2} ${s3}`;
 
-  // Crown is strictly hidden until the 4th true hidden ending is achieved
   if (unlocked.trueEnd) {
     crownSigil.innerHTML = "<span style='color:#ff1744'>[CROWN]</span>";
   } else {
@@ -758,16 +757,17 @@ const watcher = {
   baseSpeed: 330
 };
 
+// Expanded unique poetic lore writings for every single seal collected in the Abyss / Pit
 const abyssLore = [
-  "GENESIS 3:24 — 'He drove out the man; and placed at the east of the garden Cherubims, and a flaming sword...'",
-  "EZEKIEL 1:18 — 'As for their rings, they were so high that they were dreadful; and their rings were full of eyes round about them.'",
-  "JOB 26:6 — 'Sheol is naked before Him, and Abaddon has no covering.'",
-  "REVELATION 9:11 — 'They had as king over them the angel of the Abyss, whose name in Hebrew is Abaddon.'",
-  "MATTHEW 8:12 — 'Thrown outside into the darkness, where there will be weeping and gnashing of teeth.'",
-  "THE SIXTH SEAL SHATTERS. ONE REMAINS.",
-  "REVELATION 8:1 — 'When he opened the seventh seal, there was silence in heaven for about half an hour.'",
-  "ISAIAH 14:15 — 'Yet you are brought down to Sheol, to the far reaches of the pit.'",
-  "THE THRONE IS EMPTY. YOU HAVE BECOME THE WATCHER."
+  /* 1 */ "SEAL I // GENESIS 3:24: 'He drove out the man; and placed at the east of the garden Cherubims, and a flaming sword...'",
+  /* 2 */ "SEAL II // EZEKIEL 1:18: 'As for their rings, they were so high that they were dreadful; and their rings were full of eyes round about them.'",
+  /* 3 */ "SEAL III // JOB 26:6: 'Sheol is naked before Him, and Abaddon has no covering. The earth is hung upon nothing.'",
+  /* 4 */ "SEAL IV // REVELATION 9:11: 'They had as king over them the angel of the Abyss, whose name in Hebrew is Abaddon, but in Greek Apollyon.'",
+  /* 5 */ "SEAL V // MATTHEW 8:12: 'The children of the kingdom shall be cast out into outer darkness: there shall be weeping and gnashing of teeth.'",
+  /* 6 */ "SEAL VI // THE FRAGMENTED SKY: 'The heavens rolled up like a parchment scroll. Every mountain and island was moved out of its place.'",
+  /* 7 */ "SEAL VII // REVELATION 8:1: 'When he opened the seventh seal, there was silence in heaven for about half an hour. The loop paused.'",
+  /* 8 */ "SEAL VIII // ISAIAH 14:15: 'Yet you shall be brought down to Sheol, to the lowest depths of the pit. The watchers remember your face.'",
+  /* 9 */ "SEAL IX // THE ROOT CORE: 'The throne is empty. The firewall has failed. You hold the master key to the garden's source code.'"
 ];
 
 const edenWhispers = [
@@ -805,7 +805,6 @@ function toggleCodex() {
     
     let manuscript = "--- TORN MANUSCRIPT FRAGMENTS ---\n\n";
     
-    // Fragment I: Eden
     manuscript += "[ FRAGMENT I: THE GREEN PASTURE ]\n";
     if (unlocked.eden) {
       manuscript += "  'We walked upon carpets of seamless green, gathering sweet fruit under an unchanging sky. We thought this was creation itself—a endless loop of quiet grace. But the grass felt too soft, the horizon too abrupt. It was a cage woven from psalm and silence, keeping us blind to the machinery beneath.'\n\n";
@@ -813,7 +812,6 @@ function toggleCodex() {
       manuscript += "  * [ The parchment is blank and torn here. Complete the 20-fruit harvest in Eden to reveal its secret... ] *\n\n";
     }
 
-    // Fragment II: The Watcher / Void
     manuscript += "[ FRAGMENT II: THE FLAMING SWORD ]\n";
     if (unlocked.death) {
       manuscript += "  'At the eastern edge, the cold bark bled black sap. When our curiosity breached the boundary, the peace shattered. The Watcher came—not with hatred, but with geometric coldness. It is the sentinel of Eden, woven from thousand-eyed rings and fire, tasked with dragging wanderers into outer darkness.'\n\n";
@@ -821,15 +819,13 @@ function toggleCodex() {
       manuscript += "  * [ The text is charred and unreadable. Touch the cold anomaly tree and let the guardian claim you... ] *\n\n";
     }
 
-    // Fragment III: The Abyss
     manuscript += "[ FRAGMENT III: THE BASEMENT OF SHEOL ]\n";
     if (unlocked.revelation) {
       manuscript += "  'To fall is not to perish; it is to wake up. Below the green illusion lies Sheol—a vast, weeping expanse of raw code and ancient judgment. We collected the shattered seals, discovering that every forgotten soul and erased timeline collects here in the dark. The abyss is the truth the garden tried to hide.'\n\n";
     } else {
-      manuscript += "  * [ The ink has smudged into black ash. Fall into the abyss and shatter all 6 seals... ] *\n\text";
+      manuscript += "  * [ The ink has smudged into black ash. Fall into the abyss and shatter all 6 seals... ] *\n\n";
     }
 
-    // Fragment IV: The Crown
     manuscript += "[ FRAGMENT IV: THE EIGHTH DAY ]\n";
     if (unlocked.trueEnd) {
       manuscript += "  'And when the bottomless pit opened its jaws, we did not run. We hunted the watcher down. In consuming the core, the simulation collapsed into our hands. We are no longer sheep in the pasture, nor wanderers in the dark. We hold the syntax. We are the architects now.'\n";
@@ -853,7 +849,6 @@ function processCommand(cmd) {
   if (baseCmd === "help") {
     logToConsole(
       "AVAILABLE COMMANDS:\n" +
-      " - lore: Unfurls the torn manuscript codex\n" +
       " - reset: Wipes all unlocked endings in localStorage\n" +
       " - abyss: Instantly triggers the standard Abyss realm\n" +
       " - trueabyss: Instantly triggers the Bottomless Pit\n" +
@@ -864,9 +859,6 @@ function processCommand(cmd) {
       " - teleport: Warps player to a safe random location\n" +
       " - clear: Clears console terminal log"
     );
-  } else if (baseCmd === "lore") {
-    toggleConsole();
-    toggleCodex();
   } else if (baseCmd === "reset") {
     localStorage.removeItem("eden_abyss_endings");
     unlocked = { eden: false, death: false, revelation: false, trueEnd: false };
