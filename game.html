@@ -824,4 +824,169 @@ function draw() {
     if (isFlickering) {
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
-      ctx.ellipse(item.x + 7, item.y +
+      ctx.ellipse(item.x + 7, item.y + 7, 12, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ff0000";
+      ctx.beginPath();
+      ctx.arc(item.x + 7, item.y + 7, 4, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.translate((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
+    } else {
+      ctx.fillStyle = "#ffd700";
+      ctx.beginPath();
+      ctx.arc(item.x + 7, item.y + 7, 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (forbiddenFruit.active) {
+      const glow = 5 + Math.sin(glitchTimer * 0.1) * 2;
+      ctx.fillStyle = "rgba(255, 23, 68, 0.35)";
+      ctx.beginPath();
+      ctx.arc(forbiddenFruit.x + 7, forbiddenFruit.y + 7, glow + 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#ff1744";
+      ctx.beginPath();
+      ctx.arc(forbiddenFruit.x + 7, forbiddenFruit.y + 7, 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (isFlickering) {
+      drawWatcher(anomaly.x - 15, anomaly.y - 10, 28);
+    }
+
+    ctx.fillStyle = godMode ? "#ffd700" : (isFlickering ? "#b0bec5" : "#ffffff");
+    ctx.fillRect(player.x, player.y, player.size, player.size);
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
+
+    for (const tree of forestTrees) {
+      drawTree(tree.x, tree.y, tree.style);
+    }
+
+    drawTree(anomaly.x, anomaly.y, anomaly.style);
+
+  } else {
+    ctx.fillStyle = isTrueAbyss ? "#050000" : "#090202";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = isTrueAbyss ? "#4a0000" : "#2a0808";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 8; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * 85, 0);
+      ctx.lineTo(i * 85 + 15, 60);
+      ctx.stroke();
+    }
+
+    if (glitchTimer % 10 < 2) {
+      ctx.fillStyle = "rgba(255, 0, 0, 0.08)";
+      ctx.fillRect(0, Math.random() * canvas.height, canvas.width, 4);
+    }
+
+    if (watcherStunTimer > 28) {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.ellipse(item.x + 7, item.y + 7, 10, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ff0000";
+    ctx.beginPath();
+    ctx.arc(item.x + 7, item.y + 7, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (phantomItem.active && glitchTimer % 6 < 4) {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+      ctx.beginPath();
+      ctx.ellipse(phantomItem.x + 7, phantomItem.y + 7, 10, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255, 0, 0, 0.55)";
+      ctx.beginPath();
+      ctx.arc(phantomItem.x + 7, phantomItem.y + 7, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = godMode ? "#ffd700" : "#b0bec5";
+    ctx.fillRect(player.x, player.y, player.size, player.size);
+
+    drawWatcher(watcher.x, watcher.y, watcher.size);
+
+    const visionRadius = isTrueAbyss ? 175 : 210;
+    const gradient = ctx.createRadialGradient(
+      player.x + 10, player.y + 10, 35,
+      player.x + 10, player.y + 10, visionRadius
+    );
+    gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+    gradient.addColorStop(1, "rgba(0, 0, 0, 0.95)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  if (gameOver) {
+    ctx.textAlign = "center";
+
+    if (edenWon) {
+      ctx.fillStyle = "rgba(255, 248, 220, 0.90)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#2e7d32";
+      ctx.font = "bold 22px Courier New";
+      ctx.fillText("THE OBEDIENT SHEPHERD", canvas.width / 2, 150);
+      ctx.fillStyle = "#333333";
+      ctx.font = "13px Courier New";
+      ctx.fillText("You tended the grove in peace and resisted temptation.", canvas.width / 2, 185);
+      ctx.fillStyle = "#666666";
+      ctx.font = "12px Courier New";
+      ctx.fillText("Press [R] to replay... but something feels off.", canvas.width / 2, 235);
+    } else if (trueWon) {
+      ctx.fillStyle = "rgba(15, 0, 0, 0.93)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#ff1744";
+      ctx.font = "bold 24px Courier New";
+      ctx.fillText("THE SEVENTH SEAL UNDONE", canvas.width / 2, 150);
+      ctx.fillStyle = "#e0e0e0";
+      ctx.font = "13px Courier New";
+      ctx.fillText("Eden and Sheol are one. You inherited the throne of eyes.", canvas.width / 2, 185);
+      ctx.fillStyle = "#888888";
+      ctx.font = "12px Courier New";
+      ctx.fillText("Press [R] to walk the garden once more.", canvas.width / 2, 235);
+    } else if (won) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#ff5252";
+      ctx.font = "bold 24px Courier New";
+      ctx.fillText("BE NOT AFRAID.", canvas.width / 2, 160);
+      ctx.fillStyle = "#cccccc";
+      ctx.font = "14px Courier New";
+      ctx.fillText("You gazed into the Abyss and survived the revelation.", canvas.width / 2, 195);
+      ctx.fillText("Press [R] to return to the beginning.", canvas.width / 2, 240);
+    } else {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#ff0000";
+      ctx.font = "bold 26px Courier New";
+      ctx.fillText("CAST INTO OUTER DARKNESS", canvas.width / 2, 160);
+      ctx.fillStyle = "#aaaaaa";
+      ctx.font = "14px Courier New";
+      ctx.fillText("Curiosity opened the pit. The Watcher claimed you.", canvas.width / 2, 195);
+      ctx.fillText("Press [R] to try again.", canvas.width / 2, 240);
+    }
+  }
+
+  ctx.restore();
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+updateSigilHUD();
+loop();
+</script>
+</body>
+</html>
