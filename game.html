@@ -183,7 +183,6 @@ let flickerFrames = 0;
 let watcherStunTimer = 0;
 let flickerCooldown = 0;
 let hasFlickeredBefore = false;
-let watcherAmbushTimer = 0; // Tracks the initial rush towards the player
 
 // Paranoia State Variables (Real-Time Based)
 let playerStillTimer = performance.now();
@@ -239,7 +238,7 @@ const watcher = {
   x: 550,
   y: 50,
   size: 28,
-  baseSpeed: 250
+  baseSpeed: 330 // High, unyielding hunting speed
 };
 
 const abyssLore = [
@@ -452,12 +451,11 @@ function triggerUpsideDown(trueMode = false) {
   playerStillTimer = performance.now();
   isWhispering = false;
   phantomItem.active = false;
-  watcherAmbushTimer = 1.2; // 1.2 seconds of rushing straight at the player upon entering
   player.x = 60;
   player.y = 200;
   watcher.x = 540;
   watcher.y = 200;
-  watcher.baseSpeed = trueMode ? 270 : 250;
+  watcher.baseSpeed = trueMode ? 350 : 330;
   
   realmText.innerText = trueMode ? "REALM: THE BOTTOMLESS PIT" : "REALM: SHEOL // THE ABYSS";
   realmText.style.color = "#ff2a2a";
@@ -510,13 +508,12 @@ function resetGame() {
   watcherStunTimer = 0;
   flickerCooldown = 0;
   hasFlickeredBefore = false;
-  watcherAmbushTimer = 0;
   playerStillTimer = performance.now();
   isWhispering = false;
   phantomItem.active = false;
   player.x = 50;
   player.y = 200;
-  watcher.baseSpeed = 250;
+  watcher.baseSpeed = 330;
   
   canvas.style.borderColor = "#333";
   canvas.style.boxShadow = "0 0 20px rgba(0,0,0,0.8)";
@@ -586,7 +583,6 @@ function update(dt) {
   if (flickerFrames > 0) flickerFrames -= dt * 60;
   if (watcherStunTimer > 0) watcherStunTimer -= dt * 60;
   if (flickerCooldown > 0) flickerCooldown -= dt * 60;
-  if (watcherAmbushTimer > 0) watcherAmbushTimer -= dt;
   if (gameOver) return;
 
   if (!isUpsideDown && score >= 8 && flickerFrames <= 0 && flickerCooldown <= 0) {
@@ -705,7 +701,7 @@ function update(dt) {
       scoreText.innerText = `SEALS BROKEN: ${eyesCollected} / ${targetSeals}`;
       setLore(abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)]);
       
-      watcher.baseSpeed += isTrueAbyss ? 14 : 16;
+      watcher.baseSpeed += isTrueAbyss ? 18 : 20; // Relentless speed scaling per seal
       watcherStunTimer = 36; 
       shakeTime = 20;
       phantomItem.active = false;
@@ -747,19 +743,7 @@ function update(dt) {
     const dist = Math.hypot(dx, dy);
 
     if (dist > 0) {
-      let dynamicSpeed = watcher.baseSpeed;
-
-      // Ambush rush: Watcher charges intensely right when entering the Abyss
-      if (watcherAmbushTimer > 0) {
-        dynamicSpeed += 320; 
-      } else if (dist > 200) {
-        dynamicSpeed += 80;
-      } else if (dist < 80) {
-        dynamicSpeed -= 12;
-      }
-
-      const maxCap = isTrueAbyss ? 450 : 420;
-      dynamicSpeed = Math.min(dynamicSpeed, maxCap);
+      let dynamicSpeed = watcher.baseSpeed; // Constant, high-speed unyielding pursuit
 
       if (watcherStunTimer > 0) {
         dynamicSpeed *= 0.25;
