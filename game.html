@@ -685,4 +685,23 @@ function draw() {
       ctx.font = "bold 26px Courier New";
       ctx.fillText("CAST INTO OUTER DARKNESS", canvas.width / 2, 160);
       ctx.fillStyle = "#aaaaaa";
-      ctx
+      ctx.font = "14px Courier New";
+      ctx.fillText("Curiosity opened the pit. The Watcher claimed you.", canvas.width / 2, 195);
+      ctx.fillText("Press [R] to try again.", canvas.width / 2, 240);
+    }
+  }
+
+    ctx.restore();
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+updateSigilHUD();
+loop();
+</script>
+</body>
+</html>
