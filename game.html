@@ -35,19 +35,39 @@
     transition: border-color 0.15s ease;
     display: block;
   }
+  
+  /* Refined, Clean Top HUD */
   #hud {
     width: 600px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
-    font-size: 14px;
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    background: rgba(22, 26, 35, 0.7);
+    border: 1px solid #222;
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-size: 13px;
     font-weight: bold;
   }
+  
+  .hud-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .hud-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
   #sigils {
     letter-spacing: 2px;
-    font-size: 12px;
-    color: #555;
+    font-size: 11px;
+    color: #666;
   }
   
   /* Minimalist Volume Control in HUD */
@@ -55,12 +75,16 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 11px;
+    font-size: 10px;
     color: #a8e6cf;
+    background: rgba(14, 17, 23, 0.5);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #2a3240;
   }
   #volume-slider {
-    width: 70px;
-    height: 4px;
+    width: 60px;
+    height: 3px;
     cursor: pointer;
     accent-color: #a8e6cf;
     margin: 0;
@@ -70,8 +94,8 @@
   }
   #volume-slider::-webkit-slider-thumb {
     appearance: none;
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: #a8e6cf;
     cursor: pointer;
@@ -140,9 +164,11 @@
 <body>
 
 <div id="hud">
-  <span id="score-text">FRUITS GATHERED: 0 / 20</span>
-  <span id="sigils" title="Unlocked Endings">[---] [---] [---]</span>
-  <div style="display: flex; align-items: center; gap: 12px;">
+  <div class="hud-left">
+    <span id="score-text">FRUITS GATHERED: 0 / 20</span>
+    <span id="sigils" title="Unlocked Endings">[---] [---] [---]</span>
+  </div>
+  <div class="hud-right">
     <div class="volume-container" title="Master Volume">
       <span>VOL</span>
       <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.45">
@@ -1285,8 +1311,6 @@ function drawWatcher(wx, wy, wsize, fleeing = false) {
 
   ctx.save();
   ctx.translate(wx + wsize / 2, wy + wsize / 2);
-  
-  // UPDATED: Faster rotation speeds here
   const rotSpeed = watcherStunTimer > 0 ? 0.03 : (fleeing ? 0.45 : 0.12);
   ctx.rotate(glitchTimer * rotSpeed);
   
