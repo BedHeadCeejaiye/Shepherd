@@ -19,14 +19,21 @@
     box-shadow: 0 0 20px rgba(0,0,0,0.8);
     background-color: #558b2f;
     outline: none;
+    transition: border-color 0.15s ease;
   }
   #hud {
     width: 600px;
     display: flex;
     justify-content: space-between;
+    align-items: center;
     margin-bottom: 8px;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: bold;
+  }
+  #sigils {
+    letter-spacing: 2px;
+    font-size: 12px;
+    color: #555;
   }
   #lore-box {
     width: 580px;
@@ -45,6 +52,7 @@
 
 <div id="hud">
   <span id="score-text">FRUITS GATHERED: 0 / 20</span>
+  <span id="sigils" title="Unlocked Endings">[---] [---] [---]</span>
   <span id="realm-text" style="color: #a8e6cf;">REALM: EDEN'S GROVE</span>
 </div>
 
@@ -60,19 +68,50 @@ const ctx = canvas.getContext("2d");
 const scoreText = document.getElementById("score-text");
 const realmText = document.getElementById("realm-text");
 const loreBox = document.getElementById("lore-box");
+const sigilsText = document.getElementById("sigils");
 
 canvas.focus();
 canvas.addEventListener("click", () => canvas.focus());
 
+// Persistent ending unlocks
+let unlocked = JSON.parse(localStorage.getItem("eden_abyss_endings")) || {
+  eden: false,
+  death: false,
+  revelation: false,
+  trueEnd: false
+};
+
+function saveEnding(key) {
+  unlocked[key] = true;
+  localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
+  updateSigilHUD();
+}
+
+function allBaseEndingsUnlocked() {
+  return unlocked.eden && unlocked.death && unlocked.revelation;
+}
+
+function updateSigilHUD() {
+  const s1 = unlocked.eden ? "<span style='color:#a8e6cf'>[LEAF]</span>" : "[----]";
+  const s2 = unlocked.death ? "<span style='color:#ff5252'>[VOID]</span>" : "[----]";
+  const s3 = unlocked.revelation ? "<span style='color:#ffd700'>[EYE]</span>" : "[---]";
+  const s4 = unlocked.trueEnd ? " <span style='color:#ff1744'>[CROWN]</span>" : "";
+  sigilsText.innerHTML = `${s1} ${s2} ${s3}${s4}`;
+}
+
 let isUpsideDown = false;
+let isTrueAbyss = false;
 let gameOver = false;
 let won = false;
 let edenWon = false;
+let trueWon = false;
 let score = 0;
 let eyesCollected = 0;
+let targetSeals = 6;
 let forbiddenTouches = 0;
 let shakeTime = 0;
 let glitchTimer = 0;
+let flickerFrames = 0;
 
 const player = {
   x: 50,
@@ -87,7 +126,14 @@ let item = {
   size: 14
 };
 
-// Mix of round and boxy trees across the forest
+// Secret 4th Ending Forbidden Fruit (appears only after all 3 base endings are unlocked)
+const forbiddenFruit = {
+  x: 495,
+  y: 205,
+  size: 14,
+  active: false
+};
+
 const forestTrees = [
   { x: 60, y: 50, width: 45, height: 45, style: "round" },
   { x: 180, y: 40, width: 45, height: 45, style: "boxy" },
@@ -102,7 +148,6 @@ const forestTrees = [
   { x: 450, y: 280, width: 45, height: 45, style: "boxy" }
 ];
 
-// Trigger tree (round canopy with blocky trunk, no ground circle)
 const anomaly = {
   x: 520,
   y: 190,
@@ -124,7 +169,10 @@ const abyssLore = [
   "JOB 26:6 — 'Sheol is naked before Him, and Abaddon has no covering.'",
   "REVELATION 9:11 — 'They had as king over them the angel of the Abyss, whose name in Hebrew is Abaddon.'",
   "MATTHEW 8:12 — 'Thrown outside into the darkness, where there will be weeping and gnashing of teeth.'",
-  "THE SEVENTH SEAL IS BROKEN. YOU CANNOT RETURN TO THE GROVE."
+  "THE SIXTH SEAL SHATTERS. ONE REMAINS.",
+  "REVELATION 8:1 — 'When he opened the seventh seal, there was silence in heaven for about half an hour.'",
+  "ISAIAH 14:15 — 'Yet you are brought down to Sheol, to the far reaches of the pit.'",
+  "THE THRONE IS EMPTY. YOU HAVE BECOME THE WATCHER."
 ];
 
 const keys = {};
@@ -161,24 +209,29 @@ function spawnItem() {
   }
 }
 
-function triggerUpsideDown() {
+function triggerUpsideDown(trueMode = false) {
   isUpsideDown = true;
-  shakeTime = 45;
+  isTrueAbyss = trueMode;
+  targetSeals = trueMode ? 9 : 6;
+  shakeTime = trueMode ? 70 : 45;
   score = 0;
   player.x = 60;
   player.y = 200;
   watcher.x = 540;
   watcher.y = 200;
+  watcher.speed = trueMode ? 1.45 : 1.25;
   
-  realmText.innerText = "REALM: SHEOL // THE ABYSS";
+  realmText.innerText = trueMode ? "REALM: THE BOTTOMLESS PIT" : "REALM: SHEOL // THE ABYSS";
   realmText.style.color = "#ff2a2a";
-  scoreText.innerText = "SEALS BROKEN: 0 / 6";
+  scoreText.innerText = `SEALS BROKEN: 0 / ${targetSeals}`;
   scoreText.style.color = "#ff2a2a";
   
   loreBox.style.background = "#1a0505";
   loreBox.style.borderLeft = "4px solid #ff0000";
   loreBox.style.color = "#ff9999";
-  loreBox.innerText = "YOU ATE FROM THE FORBIDDEN ROOT. THE SKY HAS ROLLED UP LIKE A SCROLL.";
+  loreBox.innerText = trueMode
+    ? "YOU CONSUMED THE CORE OF KNOWLEDGE. THE ABYSS KNOWS YOUR NAME."
+    : "YOU TOUCHED THE FORBIDDEN ROOT. THE SKY HAS ROLLED UP LIKE A SCROLL.";
   spawnItem();
 }
 
@@ -199,22 +252,33 @@ function handleAnomalyTouch() {
   } else if (forbiddenTouches === 3) {
     loreBox.innerText = "You hear faint whispers echoing up through the roots... Turn back.";
   } else if (forbiddenTouches >= 4) {
-    triggerUpsideDown();
+    triggerUpsideDown(false);
   }
 }
 
 function resetGame() {
   isUpsideDown = false;
+  isTrueAbyss = false;
   gameOver = false;
   won = false;
   edenWon = false;
+  trueWon = false;
   score = 0;
   eyesCollected = 0;
+  targetSeals = 6;
   forbiddenTouches = 0;
   shakeTime = 0;
+  flickerFrames = 0;
   player.x = 50;
   player.y = 200;
   watcher.speed = 1.25;
+  
+  // Reset sanity border
+  canvas.style.borderColor = "#333";
+  canvas.style.boxShadow = "0 0 20px rgba(0,0,0,0.8)";
+
+  // Check if 4th ending path is unlocked
+  forbiddenFruit.active = allBaseEndingsUnlocked();
   
   realmText.innerText = "REALM: EDEN'S GROVE";
   realmText.style.color = "#a8e6cf";
@@ -224,7 +288,11 @@ function resetGame() {
   loreBox.style.background = "#161a23";
   loreBox.style.borderLeft = "4px solid #558b2f";
   loreBox.style.color = "#e0e0e0";
-  loreBox.innerText = '"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."';
+  loreBox.innerText = forbiddenFruit.active
+    ? "The three seals are remembered. A crimson fruit has fallen from the eastern tree..."
+    : '"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."';
+  
+  updateSigilHUD();
   spawnItem();
 }
 
@@ -233,11 +301,9 @@ function checkCollision(ax, ay, aw, ah, bx, by, bw, bh) {
 }
 
 function drawTree(x, y, style = "round") {
-  // Blocky trunk
   ctx.fillStyle = "#2e1c0c";
   ctx.fillRect(x + 16, y + 22, 13, 20);
 
-  // Canopy (either circular or boxy)
   ctx.fillStyle = "#1b4d1b";
   if (style === "boxy") {
     ctx.fillRect(x + 5, y + 5, 35, 22);
@@ -248,9 +314,38 @@ function drawTree(x, y, style = "round") {
   }
 }
 
+function updateSanityBorder() {
+  if (!isUpsideDown || gameOver) {
+    if (!gameOver) {
+      canvas.style.borderColor = "#333";
+      canvas.style.boxShadow = "0 0 20px rgba(0,0,0,0.8)";
+    }
+    return;
+  }
+
+  const dist = Math.hypot(player.x - watcher.x, player.y - watcher.y);
+  // Proximity goes from 0 (far: >350px) to 1 (touching: <30px)
+  const proximity = Math.max(0, Math.min(1, 1 - (dist - 30) / 320));
+  const pulseSpeed = 0.08 + proximity * 0.25;
+  const pulse = (Math.sin(glitchTimer * pulseSpeed) + 1) / 2;
+
+  const alpha = (0.15 + proximity * 0.75) * (0.6 + pulse * 0.4);
+  const spread = Math.round(12 + proximity * 35 + pulse * 10);
+  const red = Math.round(120 + proximity * 135);
+
+  canvas.style.borderColor = `rgba(${red}, 15, 15, ${0.5 + proximity * 0.5})`;
+  canvas.style.boxShadow = `0 0 ${spread}px rgba(${red}, 0, 0, ${alpha.toFixed(2)})`;
+}
+
 function update() {
   if (shakeTime > 0) shakeTime--;
+  if (flickerFrames > 0) flickerFrames--;
   if (gameOver) return;
+
+  // Trigger random 1-2 frame subliminal flickers in Eden once 8+ fruits are gathered
+  if (!isUpsideDown && score >= 8 && flickerFrames === 0 && Math.random() < 0.004) {
+    flickerFrames = 2;
+  }
 
   let touchedAnomalyThisFrame = false;
 
@@ -302,6 +397,16 @@ function update() {
     handleAnomalyTouch();
   }
 
+  // Check secret 4th ending Forbidden Fruit pickup
+  if (!isUpsideDown && forbiddenFruit.active) {
+    if (checkCollision(player.x, player.y, player.size, player.size, forbiddenFruit.x, forbiddenFruit.y, forbiddenFruit.size, forbiddenFruit.size)) {
+      forbiddenFruit.active = false;
+      triggerUpsideDown(true);
+      return;
+    }
+  }
+
+  // Standard collectible collision
   if (checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
     if (!isUpsideDown) {
       score++;
@@ -315,20 +420,27 @@ function update() {
       if (score >= 20) {
         gameOver = true;
         edenWon = true;
+        saveEnding("eden");
         loreBox.innerText = "MATTHEW 25:21 — 'Well done, good and faithful servant. Enter into the joy of your master.'";
       } else {
         spawnItem();
       }
     } else {
       eyesCollected++;
-      scoreText.innerText = `SEALS BROKEN: ${eyesCollected} / 6`;
+      scoreText.innerText = `SEALS BROKEN: ${eyesCollected} / ${targetSeals}`;
       loreBox.innerText = abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)];
-      watcher.speed += 0.2;
+      watcher.speed += isTrueAbyss ? 0.18 : 0.2;
       shakeTime = 20;
       
-      if (eyesCollected >= 6) {
+      if (eyesCollected >= targetSeals) {
         gameOver = true;
-        won = true;
+        if (isTrueAbyss) {
+          trueWon = true;
+          saveEnding("trueEnd");
+        } else {
+          won = true;
+          saveEnding("revelation");
+        }
         shakeTime = 9999;
       } else {
         spawnItem();
@@ -348,11 +460,35 @@ function update() {
     if (checkCollision(player.x, player.y, player.size, player.size, watcher.x, watcher.y, watcher.size, watcher.size)) {
       gameOver = true;
       won = false;
+      saveEnding("death");
       shakeTime = 9999;
     }
   }
 
+  updateSanityBorder();
   glitchTimer++;
+}
+
+function drawWatcher(wx, wy, wsize) {
+  ctx.save();
+  ctx.translate(wx + wsize / 2, wy + wsize / 2);
+  ctx.rotate(glitchTimer * 0.05);
+  
+  ctx.strokeStyle = "#ff1744";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-18, -18, 36, 36);
+  ctx.rotate(Math.PI / 4);
+  ctx.strokeRect(-18, -18, 36, 36);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(0, 0, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#000000";
+  ctx.beginPath();
+  ctx.arc(0, 0, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 function draw() {
@@ -365,37 +501,69 @@ function draw() {
   }
 
   if (!isUpsideDown) {
-    ctx.fillStyle = "#558b2f";
+    const isFlickering = flickerFrames > 0;
+
+    // Ground flashes pitch-dark crimson during subliminal flicker
+    ctx.fillStyle = isFlickering ? "#140404" : "#558b2f";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = "#fff59d";
+    ctx.fillStyle = isFlickering ? "#ff1744" : "#fff59d";
     for (let i = 0; i < 10; i++) {
       ctx.fillRect((i * 59) % 580, (i * 83) % 380, 4, 4);
     }
 
-    ctx.fillStyle = "#ffd700";
-    ctx.beginPath();
-    ctx.arc(item.x + 7, item.y + 7, 7, 0, Math.PI * 2);
-    ctx.fill();
+    // Golden Apple briefly turns into a staring eye during flicker
+    if (isFlickering) {
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.ellipse(item.x + 7, item.y + 7, 10, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ff0000";
+      ctx.beginPath();
+      ctx.arc(item.x + 7, item.y + 7, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = "#ffd700";
+      ctx.beginPath();
+      ctx.arc(item.x + 7, item.y + 7, 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
-    ctx.fillStyle = "#ffffff";
+    // Draw secret 4th ending Forbidden Fruit if unlocked
+    if (forbiddenFruit.active) {
+      const glow = 5 + Math.sin(glitchTimer * 0.1) * 2;
+      ctx.fillStyle = "rgba(255, 23, 68, 0.35)";
+      ctx.beginPath();
+      ctx.arc(forbiddenFruit.x + 7, forbiddenFruit.y + 7, glow + 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#ff1744";
+      ctx.beginPath();
+      ctx.arc(forbiddenFruit.x + 7, forbiddenFruit.y + 7, 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Subliminal Watcher silhouette right behind the eastern tree during flicker
+    if (isFlickering) {
+      drawWatcher(anomaly.x - 15, anomaly.y - 10, 28);
+    }
+
+    ctx.fillStyle = isFlickering ? "#b0bec5" : "#ffffff";
     ctx.fillRect(player.x, player.y, player.size, player.size);
     ctx.fillStyle = "#000000";
     ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
 
-    // Draw all decoy trees (mix of round and boxy)
     for (const tree of forestTrees) {
       drawTree(tree.x, tree.y, tree.style);
     }
 
-    // Draw the Trigger Tree (matches the round trees without any ground circle)
     drawTree(anomaly.x, anomaly.y, anomaly.style);
 
   } else {
-    ctx.fillStyle = "#090202";
+    ctx.fillStyle = isTrueAbyss ? "#050000" : "#090202";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.strokeStyle = "#2a0808";
+    ctx.strokeStyle = isTrueAbyss ? "#4a0000" : "#2a0808";
     ctx.lineWidth = 2;
     for (let i = 0; i < 8; i++) {
       ctx.beginPath();
@@ -409,6 +577,7 @@ function draw() {
       ctx.fillRect(0, Math.random() * canvas.height, canvas.width, 4);
     }
 
+    // Collectible: The Ophanim Eye
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
     ctx.ellipse(item.x + 7, item.y + 7, 10, 6, 0, 0, Math.PI * 2);
@@ -421,32 +590,15 @@ function draw() {
     ctx.fillStyle = "#b0bec5";
     ctx.fillRect(player.x, player.y, player.size, player.size);
 
-    ctx.save();
-    ctx.translate(watcher.x + watcher.size / 2, watcher.y + watcher.size / 2);
-    ctx.rotate(glitchTimer * 0.05);
-    
-    ctx.strokeStyle = "#ff1744";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(-18, -18, 36, 36);
-    ctx.rotate(Math.PI / 4);
-    ctx.strokeRect(-18, -18, 36, 36);
+    drawWatcher(watcher.x, watcher.y, watcher.size);
 
-    ctx.fillStyle = "#ffffff";
-    ctx.beginPath();
-    ctx.arc(0, 0, 7, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#000000";
-    ctx.beginPath();
-    ctx.arc(0, 0, 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
+    const visionRadius = isTrueAbyss ? 175 : 210;
     const gradient = ctx.createRadialGradient(
       player.x + 10, player.y + 10, 35,
-      player.x + 10, player.y + 10, 210
+      player.x + 10, player.y + 10, visionRadius
     );
     gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
-    gradient.addColorStop(1, "rgba(0, 0, 0, 0.94)");
+    gradient.addColorStop(1, "rgba(0, 0, 0, 0.95)");
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
@@ -466,6 +618,18 @@ function draw() {
       ctx.fillStyle = "#666666";
       ctx.font = "12px Courier New";
       ctx.fillText("Press [R] to replay... but something feels off.", canvas.width / 2, 235);
+    } else if (trueWon) {
+      ctx.fillStyle = "rgba(15, 0, 0, 0.93)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#ff1744";
+      ctx.font = "bold 24px Courier New";
+      ctx.fillText("THE SEVENTH SEAL UNDONE", canvas.width / 2, 150);
+      ctx.fillStyle = "#e0e0e0";
+      ctx.font = "13px Courier New";
+      ctx.fillText("Eden and Sheol are one. You inherited the throne of eyes.", canvas.width / 2, 185);
+      ctx.fillStyle = "#888888";
+      ctx.font = "12px Courier New";
+      ctx.fillText("Press [R] to walk the garden once more.", canvas.width / 2, 235);
     } else if (won) {
       ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -498,6 +662,8 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
+// Initialize HUD sigils on load
+updateSigilHUD();
 loop();
 </script>
 </body>
