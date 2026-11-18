@@ -13,12 +13,6 @@
     color: white;
     user-select: none;
   }
-  #game-layout {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    position: relative;
-  }
   #game-wrapper {
     position: relative;
     width: 600px;
@@ -45,40 +39,36 @@
     font-size: 11px;
     color: #555;
   }
-  /* Minimal Right-Side Volume Dock */
+  /* Small, transparent, minimalist volume slider on the bottom right inside the canvas */
   #volume-dock {
-    background: #161a23;
-    border: 1px solid #333;
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background: rgba(14, 17, 23, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 4px;
-    padding: 10px 6px;
+    padding: 4px 6px;
     display: flex;
-    flex-direction: column;
     align-items: center;
     gap: 6px;
-    height: 380px;
-    box-sizing: border-box;
-    justify-content: space-between;
+    z-index: 10;
+    backdrop-filter: blur(2px);
+    transition: background 0.2s ease;
+  }
+  #volume-dock:hover {
+    background: rgba(14, 17, 23, 0.85);
   }
   .volume-label {
     font-size: 9px;
     color: #a8e6cf;
-    writing-mode: vertical-rl;
     letter-spacing: 1px;
   }
-  .slider-container {
-    flex-grow: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-  }
   #volume-slider {
-    writing-mode: bt-lr;
-    -webkit-appearance: slider-vertical;
-    width: 6px;
-    height: 240px;
+    width: 60px;
+    height: 4px;
     cursor: pointer;
     accent-color: #a8e6cf;
+    margin: 0;
   }
   #lore-box {
     width: 580px;
@@ -142,26 +132,23 @@
   <span id="realm-text" style="color: #a8e6cf;">REALM: EDEN'S GROVE</span>
 </div>
 
-<div id="game-layout">
-  <div id="game-wrapper">
-    <canvas id="gameCanvas" width="600" height="400" tabindex="0"></canvas>
-    <div id="console-overlay">
-      <div id="console-log">SYS_CONSOLE v2.1 [EDEN_ABYSS KERNEL]
-Type 'help' for commands. Press [F1] to close.
---------------------------------------------------</div>
-      <div id="console-input-line">
-        <span id="console-prompt">&gt;</span>
-        <input type="text" id="console-input" autocomplete="off" spellcheck="false" />
-      </div>
-    </div>
-  </div>
-
+<div id="game-wrapper">
+  <canvas id="gameCanvas" width="600" height="400" tabindex="0"></canvas>
+  
+  <!-- Transparent Bottom-Right Volume Control -->
   <div id="volume-dock" title="Volume">
     <span class="volume-label">VOL</span>
-    <div class="slider-container">
-      <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.5">
+    <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.5">
+  </div>
+
+  <div id="console-overlay">
+    <div id="console-log">SYS_CONSOLE v2.2 [EDEN_ABYSS KERNEL]
+Type 'help' for commands. Press [F1] to close.
+--------------------------------------------------</div>
+    <div id="console-input-line">
+      <span id="console-prompt">&gt;</span>
+      <input type="text" id="console-input" autocomplete="off" spellcheck="false" />
     </div>
-    <span style="font-size: 8px; color: #555;">▪</span>
   </div>
 </div>
 
@@ -650,7 +637,7 @@ function processCommand(cmd) {
     player.y = 40 + Math.random() * 300;
     toggleConsole();
   } else if (baseCmd === "clear") {
-    consoleLog.innerText = "SYS_CONSOLE v2.1";
+    consoleLog.innerText = "SYS_CONSOLE v2.2";
   }
   consoleInput.value = "";
 }
@@ -1001,12 +988,22 @@ function draw() {
     ctx.fillStyle = isFlickering ? "#ff0000" : "#fff59d";
     for (let i = 0; i < 10; i++) ctx.fillRect((i * 59) % 580, (i * 83) % 380, 4, 4);
 
+    // Eden Pickup Item
     ctx.fillStyle = "#ffd700";
     ctx.beginPath(); ctx.arc(item.x + 7, item.y + 7, 7, 0, Math.PI * 2); ctx.fill();
 
+    // Restored Pulsing Crimson Forbidden Fruit
     if (forbiddenFruit.active) {
+      const glow = 6 + Math.sin(glitchTimer * 0.12) * 3;
+      ctx.fillStyle = "rgba(255, 23, 68, 0.4)";
+      ctx.beginPath();
+      ctx.arc(forbiddenFruit.x + 7, forbiddenFruit.y + 7, glow + 6, 0, Math.PI * 2);
+      ctx.fill();
+
       ctx.fillStyle = "#ff1744";
-      ctx.beginPath(); ctx.arc(forbiddenFruit.x + 7, forbiddenFruit.y + 7, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath();
+      ctx.arc(forbiddenFruit.x + 7, forbiddenFruit.y + 7, 7, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     if (isFlickering) drawWatcher(anomaly.x - 15, anomaly.y - 10, 28);
@@ -1022,10 +1019,26 @@ function draw() {
     ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
     for (let g of subliminalGlyphs) ctx.fillText(g.text, g.x, g.y);
 
+    // Restored Organic Floating Eye Pickup for Abyss & Pit
     if (!isWatcherFleeing) {
-      ctx.fillStyle = "#ff0000";
-      ctx.beginPath(); ctx.arc(item.x + 7, item.y + 7, 4, 0, Math.PI * 2); ctx.fill();
+      const ex = item.x + 7;
+      const ey = item.y + 7;
+      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.beginPath();
+      ctx.ellipse(ex, ey, 10, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#ff1744";
+      ctx.beginPath();
+      ctx.arc(ex, ey, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#000000";
+      ctx.beginPath();
+      ctx.arc(ex, ey, 1.5, 0, Math.PI * 2);
+      ctx.fill();
     }
+
     ctx.fillStyle = isWatcherFleeing ? "#ff1744" : "#b0bec5";
     ctx.fillRect(player.x, player.y, player.size, player.size);
     drawWatcher(watcher.x, watcher.y, watcher.size, isWatcherFleeing);
