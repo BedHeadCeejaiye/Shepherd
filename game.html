@@ -14,7 +14,7 @@
     user-select: none;
     position: relative;
   }
-  /* Main container holding canvas and external side controls */
+  /* Main container holding canvas */
   #game-layout {
     display: flex;
     align-items: center;
@@ -49,35 +49,34 @@
     font-size: 12px;
     color: #555;
   }
-  /* Volume Control Panel stationed strictly on the right side OUTSIDE the screen */
-  #volume-widget {
-    background: rgba(22, 26, 35, 0.9);
-    border: 1px solid #333;
-    padding: 12px 8px;
-    border-radius: 6px;
+  
+  /* Minimalist Volume Control in HUD */
+  .volume-container {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 8px;
-    font-size: 10px;
+    gap: 6px;
+    font-size: 11px;
     color: #a8e6cf;
-    box-shadow: 0 0 12px rgba(0,0,0,0.6);
-  }
-  .slider-box {
-    width: 20px;
-    height: 100px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
   #volume-slider {
-    width: 100px;
-    height: 6px;
-    transform: rotate(-90deg);
+    width: 70px;
+    height: 4px;
     cursor: pointer;
     accent-color: #a8e6cf;
     margin: 0;
+    background: #333;
+    border-radius: 2px;
+    appearance: none;
   }
+  #volume-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #a8e6cf;
+    cursor: pointer;
+  }
+
   #lore-box {
     width: 580px;
     min-height: 45px;
@@ -143,7 +142,13 @@
 <div id="hud">
   <span id="score-text">FRUITS GATHERED: 0 / 20</span>
   <span id="sigils" title="Unlocked Endings">[---] [---] [---]</span>
-  <span id="realm-text" style="color: #a8e6cf;">REALM: EDEN'S GROVE</span>
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <div class="volume-container" title="Master Volume">
+      <span>VOL</span>
+      <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.45">
+    </div>
+    <span id="realm-text" style="color: #a8e6cf;">REALM: EDEN'S GROVE</span>
+  </div>
 </div>
 
 <div id="game-layout">
@@ -159,14 +164,6 @@ Type 'help' for available administrative commands. Press [F1] to close.
         <span id="console-prompt">&gt;</span>
         <input type="text" id="console-input" autocomplete="off" spellcheck="false" />
       </div>
-    </div>
-  </div>
-
-  <!-- External Volume Slider on the Right Side Outside Screen -->
-  <div id="volume-widget" title="Master Volume">
-    <span>VOL</span>
-    <div class="slider-box">
-      <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.45">
     </div>
   </div>
 </div>
