@@ -61,7 +61,6 @@ const scoreText = document.getElementById("score-text");
 const realmText = document.getElementById("realm-text");
 const loreBox = document.getElementById("lore-box");
 
-// Auto-focus canvas on click so keyboard works immediately in Streamlit iframe
 canvas.focus();
 canvas.addEventListener("click", () => canvas.focus());
 
@@ -87,7 +86,6 @@ let item = {
   size: 14
 };
 
-// Decoy forest trees with physical dimensions for collision box testing
 const forestTrees = [
   { x: 60, y: 50, width: 45, height: 45 },
   { x: 180, y: 40, width: 45, height: 45 },
@@ -102,7 +100,6 @@ const forestTrees = [
   { x: 450, y: 280, width: 45, height: 45 }
 ];
 
-// The Trigger Tree
 const anomaly = {
   x: 520,
   y: 190,
@@ -141,8 +138,23 @@ window.addEventListener("keyup", (e) => {
 });
 
 function spawnItem() {
-  item.x = 40 + Math.random() * (canvas.width - 120);
-  item.y = 40 + Math.random() * (canvas.height - 80);
+  let valid = false;
+  while (!valid) {
+    item.x = 40 + Math.random() * (canvas.width - 120);
+    item.y = 40 + Math.random() * (canvas.height - 80);
+    valid = true;
+    if (!isUpsideDown) {
+      for (const tree of forestTrees) {
+        if (checkCollision(item.x, item.y, item.size, item.size, tree.x, tree.y, tree.width, tree.height)) {
+          valid = false;
+          break;
+        }
+      }
+      if (checkCollision(item.x, item.y, item.size, item.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
+        valid = false;
+      }
+    }
+  }
 }
 
 function triggerUpsideDown() {
@@ -164,6 +176,28 @@ function triggerUpsideDown() {
   loreBox.style.color = "#ff9999";
   loreBox.innerText = "YOU ATE FROM THE FORBIDDEN ROOT. THE SKY HAS ROLLED UP LIKE A SCROLL.";
   spawnItem();
+}
+
+function handleAnomalyTouch() {
+  forbiddenTouches++;
+  shakeTime = 12;
+
+  // Push player away from the center of the tree regardless of approach angle
+  const dx = (player.x + player.size / 2) - (anomaly.x + anomaly.width / 2);
+  const dy = (player.y + player.size / 2) - (anomaly.y + anomaly.height / 2);
+  const dist = Math.hypot(dx, dy) || 1;
+  player.x += (dx / dist) * 24;
+  player.y += (dy / dist) * 24;
+
+  if (forbiddenTouches === 1) {
+    loreBox.innerText = "The bark of this particular tree is unnaturally cold to the touch...";
+  } else if (forbiddenTouches === 2) {
+    loreBox.innerText = "A drop of black sap leaks from the grain. Something feels wrong.";
+  } else if (forbiddenTouches === 3) {
+    loreBox.innerText = "You hear faint whispers echoing up through the roots... Turn back.";
+  } else if (forbiddenTouches >= 4) {
+    triggerUpsideDown();
+  }
 }
 
 function resetGame() {
@@ -207,50 +241,57 @@ function update() {
   if (shakeTime > 0) shakeTime--;
   if (gameOver) return;
 
-  // Handle X movement and check collisions separately for smooth sliding against trees
+  let touchedAnomalyThisFrame = false;
+
+  // Handle X movement
   let nextX = player.x;
   if (keys["a"] || keys["arrowleft"]) nextX -= player.speed;
   if (keys["d"] || keys["arrowright"]) nextX += player.speed;
-  
   nextX = Math.max(0, Math.min(canvas.width - player.size, nextX));
   
   let collidedX = false;
-  // Check collision with decoy trees on X axis
-  for (const tree of forestTrees) {
-    if (checkCollision(nextX, player.y, player.size, player.size, tree.x, tree.y, tree.width, tree.height)) {
-      collidedX = true;
-      break;
+  if (!isUpsideDown) {
+    for (const tree of forestTrees) {
+      if (checkCollision(nextX, player.y, player.size, player.size, tree.x, tree.y, tree.width, tree.height)) {
+        collidedX = true;
+        break;
+      }
     }
-  }
-  // Check collision with anomaly on X axis
-  if (!isUpsideDown && checkCollision(nextX, player.y, player.size, player.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
-    collidedX = true;
+    if (checkCollision(nextX, player.y, player.size, player.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
+      collidedX = true;
+      touchedAnomalyThisFrame = true;
+    }
   }
   if (!collidedX) {
     player.x = nextX;
   }
 
-  // Handle Y movement and check collisions separately
+  // Handle Y movement
   let nextY = player.y;
   if (keys["w"] || keys["arrowup"]) nextY -= player.speed;
   if (keys["s"] || keys["arrowdown"]) nextY += player.speed;
-  
   nextY = Math.max(0, Math.min(canvas.height - player.size, nextY));
   
   let collidedY = false;
-  // Check collision with decoy trees on Y axis
-  for (const tree of forestTrees) {
-    if (checkCollision(player.x, nextY, player.size, player.size, tree.x, tree.y, tree.width, tree.height)) {
-      collidedY = true;
-      break;
+  if (!isUpsideDown) {
+    for (const tree of forestTrees) {
+      if (checkCollision(player.x, nextY, player.size, player.size, tree.x, tree.y, tree.width, tree.height)) {
+        collidedY = true;
+        break;
+      }
     }
-  }
-  // Check collision with anomaly on Y axis
-  if (!isUpsideDown && checkCollision(player.x, nextY, player.size, player.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
-    collidedY = true;
+    if (checkCollision(player.x, nextY, player.size, player.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
+      collidedY = true;
+      touchedAnomalyThisFrame = true;
+    }
   }
   if (!collidedY) {
     player.y = nextY;
+  }
+
+  // Trigger the anomaly interaction if bumped into from any direction
+  if (!isUpsideDown && touchedAnomalyThisFrame) {
+    handleAnomalyTouch();
   }
 
   // Collectible item collision
@@ -279,25 +320,8 @@ function update() {
     }
   }
 
-  // Check repeated interactions with the trigger tree
-  if (!isUpsideDown) {
-    // If player actively pushes into the trigger tree multiple times
-    if (checkCollision(player.x, player.y, player.size, player.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
-      forbiddenTouches++;
-      shakeTime = 12;
-      player.x -= 25; // Bump back slightly
-      
-      if (forbiddenTouches === 1) {
-        loreBox.innerText = "The bark of this particular tree is unnaturally cold to the touch...";
-      } else if (forbiddenTouches === 2) {
-        loreBox.innerText = "A drop of black sap leaks from the grain. Something feels wrong.";
-      } else if (forbiddenTouches === 3) {
-        loreBox.innerText = "You hear faint whispers echoing up through the roots... Turn back.";
-      } else if (forbiddenTouches >= 4) {
-        triggerUpsideDown();
-      }
-    }
-  } else {
+  // Upside Down Watcher logic
+  if (isUpsideDown) {
     const dx = player.x - watcher.x;
     const dy = player.y - watcher.y;
     const dist = Math.hypot(dx, dy);
@@ -326,7 +350,6 @@ function draw() {
   }
 
   if (!isUpsideDown) {
-    // === FOREST GROVE ===
     ctx.fillStyle = "#558b2f";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -354,7 +377,7 @@ function draw() {
     ctx.fillStyle = "#000000";
     ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
 
-    // Draw Decoy Forest Trees (with solid hitboxes)
+    // Draw Decoy Forest Trees
     for (const tree of forestTrees) {
       drawTree(tree.x, tree.y, false);
     }
@@ -363,7 +386,6 @@ function draw() {
     drawTree(anomaly.x, anomaly.y, forbiddenTouches > 0);
 
   } else {
-    // === THE UPSIDE DOWN (SHEOL / ABYSS) ===
     ctx.fillStyle = "#090202";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -450,7 +472,7 @@ function draw() {
     }
   }
 
-    ctx.restore();
+  ctx.restore();
 }
 
 function loop() {
