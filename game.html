@@ -183,7 +183,7 @@ let flickerFrames = 0;
 let watcherStunTimer = 0;
 let flickerCooldown = 0;
 let hasFlickeredBefore = false;
-let isWatcherFleeing = false; // Inverse Shepherd State
+let isWatcherFleeing = false;
 
 // Paranoia State Variables (Real-Time Based)
 let playerStillTimer = performance.now();
@@ -449,6 +449,7 @@ function triggerUpsideDown(trueMode = false) {
   shakeTime = trueMode ? 70 : 45;
   watcherStunTimer = 45;
   score = 0;
+  eyesCollected = 0;
   playerStillTimer = performance.now();
   isWhispering = false;
   isWatcherFleeing = false;
@@ -681,7 +682,8 @@ function update(dt) {
     }
   }
 
-  if (checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
+  // Only check item pickup if we aren't already in the hunt phase
+  if (!isWatcherFleeing && checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
     if (!isUpsideDown) {
       score++;
       scoreText.innerText = `FRUITS GATHERED: ${score} / 20`;
@@ -710,13 +712,18 @@ function update(dt) {
       phantomItem.active = false;
       
       if (eyesCollected >= targetSeals) {
-        if (isTrueAbyss && !isWatcherFleeing) {
-          // Trigger Inverse Shepherd phase!
-          isWatcherFleeing = true;
-          watcher.baseSpeed = 380; // You must hunt it down
-          setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
-          shakeTime = 40;
-        } else if (!isTrueAbyss) {
+        if (isTrueAbyss) {
+          if (!isWatcherFleeing) {
+            // Trigger Inverse Shepherd phase ONCE!
+            isWatcherFleeing = true;
+            watcherStunTimer = 0; // Remove stun so it starts running immediately
+            watcher.baseSpeed = 220; // Slower than player (360) so you can corner it
+            scoreText.innerText = "CONSUME THE WATCHER";
+            scoreText.style.color = "#ffffff";
+            setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
+            shakeTime = 40;
+          }
+        } else {
           gameOver = true;
           won = true;
           saveEnding("revelation");
@@ -729,17 +736,19 @@ function update(dt) {
   }
 
   if (isUpsideDown) {
-    if (!phantomItem.active && eyesCollected >= 1 && Math.random() < 0.12 * dt) {
-      spawnPhantomItem();
-    }
-    if (phantomItem.active) {
-      phantomItem.timer -= dt * 60;
-      const distToPhantom = Math.hypot((player.x + 10) - (phantomItem.x + 7), (player.y + 10) - (phantomItem.y + 7));
-      if (distToPhantom < 42 || phantomItem.timer <= 0) {
-        phantomItem.active = false;
-        if (distToPhantom < 42) {
-          shakeTime = 10;
-          setLore("A MIRAGE OF THE PIT. YOUR EYES DECEIVE YOU.");
+    if (!isWatcherFleeing) {
+      if (!phantomItem.active && eyesCollected >= 1 && Math.random() < 0.12 * dt) {
+        spawnPhantomItem();
+      }
+      if (phantomItem.active) {
+        phantomItem.timer -= dt * 60;
+        const distToPhantom = Math.hypot((player.x + 10) - (phantomItem.x + 7), (player.y + 10) - (phantomItem.y + 7));
+        if (distToPhantom < 42 || phantomItem.timer <= 0) {
+          phantomItem.active = false;
+          if (distToPhantom < 42) {
+            shakeTime = 10;
+            setLore("A MIRAGE OF THE PIT. YOUR EYES DECEIVE YOU.");
+          }
         }
       }
     }
@@ -752,11 +761,22 @@ function update(dt) {
       let dynamicSpeed = watcher.baseSpeed;
 
       if (isWatcherFleeing) {
-        // FLEE FROM PLAYER: The Watcher runs away from you!
-        watcher.x -= (dx / dist) * dynamicSpeed * dt;
-        watcher.y -= (dy / dist) * dynamicSpeed * dt;
-        watcher.x = Math.max(20, Math.min(canvas.width - 40, watcher.x));
-        watcher.y = Math.max(20, Math.min(canvas.height - 40, watcher.y));
+        // FLEE FROM PLAYER: Run away and steer away from corners when trapped
+        let fleeX = -(dx / dist);
+        let fleeY = -(dy / dist);
+
+        // Wall avoidance push so it doesn't just freeze against a single wall
+        if (watcher.x < 50) fleeX += 0.8;
+        if (watcher.x > canvas.width - 70) fleeX -= 0.8;
+        if (watcher.y < 50) fleeY += 0.8;
+        if (watcher.y > canvas.height - 70) fleeY -= 0.8;
+
+        const fleeNorm = Math.hypot(fleeX, fleeY) || 1;
+        watcher.x += (fleeX / fleeNorm) * dynamicSpeed * dt;
+        watcher.y += (fleeY / fleeNorm) * dynamicSpeed * dt;
+
+        watcher.x = Math.max(15, Math.min(canvas.width - 40, watcher.x));
+        watcher.y = Math.max(15, Math.min(canvas.height - 40, watcher.y));
       } else {
         if (watcherStunTimer > 0) {
           dynamicSpeed *= 0.25;
@@ -796,7 +816,7 @@ function update(dt) {
 function drawWatcher(wx, wy, wsize, fleeing = false) {
   ctx.save();
   ctx.translate(wx + wsize / 2, wy + wsize / 2);
-  const rotSpeed = watcherStunTimer > 0 ? 0.015 : (fleeing ? 0.12 : 0.05);
+  const rotSpeed = watcherStunTimer > 0 ? 0.015 : (fleeing ? 0.14 : 0.05);
   ctx.rotate(glitchTimer * rotSpeed);
   
   ctx.strokeStyle = fleeing ? "#ffffff" : (watcherStunTimer > 0 ? "#ff8a80" : "#ff1744");
@@ -905,32 +925,35 @@ function draw() {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    ctx.fillStyle = "#ffffff";
-    ctx.beginPath();
-    ctx.ellipse(item.x + 7, item.y + 7, 10, 6, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#ff0000";
-    ctx.beginPath();
-    ctx.arc(item.x + 7, item.y + 7, 3.5, 0, Math.PI * 2);
-    ctx.fill();
+    // Hide the seal item once the hunt phase begins
+    if (!isWatcherFleeing) {
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.ellipse(item.x + 7, item.y + 7, 10, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ff0000";
+      ctx.beginPath();
+      ctx.arc(item.x + 7, item.y + 7, 3.5, 0, Math.PI * 2);
+      ctx.fill();
 
-    if (phantomItem.active && Math.floor(glitchTimer) % 6 < 4) {
-      ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
-      ctx.beginPath();
-      ctx.ellipse(phantomItem.x + 7, phantomItem.y + 7, 10, 6, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "rgba(255, 0, 0, 0.55)";
-      ctx.beginPath();
-      ctx.arc(phantomItem.x + 7, phantomItem.y + 7, 3.5, 0, Math.PI * 2);
-      ctx.fill();
+      if (phantomItem.active && Math.floor(glitchTimer) % 6 < 4) {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+        ctx.beginPath();
+        ctx.ellipse(phantomItem.x + 7, phantomItem.y + 7, 10, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255, 0, 0, 0.55)";
+        ctx.beginPath();
+        ctx.arc(phantomItem.x + 7, phantomItem.y + 7, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
-    ctx.fillStyle = godMode ? "#ffd700" : "#b0bec5";
+    ctx.fillStyle = isWatcherFleeing ? "#ff1744" : (godMode ? "#ffd700" : "#b0bec5");
     ctx.fillRect(player.x, player.y, player.size, player.size);
 
     drawWatcher(watcher.x, watcher.y, watcher.size, isWatcherFleeing);
 
-    const visionRadius = isTrueAbyss ? 175 : 210;
+    const visionRadius = isWatcherFleeing ? 260 : (isTrueAbyss ? 175 : 210);
     const gradient = ctx.createRadialGradient(
       player.x + 10, player.y + 10, 35,
       player.x + 10, player.y + 10, visionRadius
