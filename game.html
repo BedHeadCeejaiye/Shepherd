@@ -12,6 +12,7 @@
     font-family: 'Courier New', Courier, monospace;
     color: white;
     user-select: none;
+    position: relative;
   }
   canvas {
     border: 3px solid #333;
@@ -46,6 +47,52 @@
     line-height: 1.4;
     transition: all 0.5s ease;
   }
+  /* Developer Console Overlay */
+  #console-overlay {
+    position: absolute;
+    top: 35px;
+    width: 560px;
+    height: 240px;
+    background: rgba(10, 13, 18, 0.95);
+    border: 2px solid #ff1744;
+    box-shadow: 0 0 25px rgba(255, 23, 68, 0.4);
+    display: none;
+    flex-direction: column;
+    padding: 10px;
+    box-sizing: border-box;
+    z-index: 100;
+    font-family: 'Courier New', Courier, monospace;
+  }
+  #console-log {
+    flex-grow: 1;
+    overflow-y: auto;
+    font-size: 12px;
+    color: #a8e6cf;
+    margin-bottom: 8px;
+    white-space: pre-wrap;
+    line-height: 1.3;
+  }
+  #console-input-line {
+    display: flex;
+    align-items: center;
+    border-top: 1px solid #333;
+    padding-top: 6px;
+  }
+  #console-prompt {
+    color: #ff1744;
+    font-weight: bold;
+    margin-right: 6px;
+    font-size: 13px;
+  }
+  #console-input {
+    flex-grow: 1;
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 13px;
+    outline: none;
+  }
 </style>
 </head>
 <body>
@@ -56,7 +103,20 @@
   <span id="realm-text" style="color: #a8e6cf;">REALM: EDEN'S GROVE</span>
 </div>
 
-<canvas id="gameCanvas" width="600" height="400" tabindex="0"></canvas>
+<div style="position: relative;">
+  <canvas id="gameCanvas" width="600" height="400" tabindex="0"></canvas>
+  
+  <!-- F1 Console Terminal -->
+  <div id="console-overlay">
+    <div id="console-log">SYS_CONSOLE v1.0 [EDEN_ABYSS KERNEL]
+Type 'help' for available administrative commands. Press [F1] to close.
+--------------------------------------------------</div>
+    <div id="console-input-line">
+      <span id="console-prompt">&gt;</span>
+      <input type="text" id="console-input" autocomplete="off" spellcheck="false" />
+    </div>
+  </div>
+</div>
 
 <div id="lore-box">
   "The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."
@@ -70,8 +130,16 @@ const realmText = document.getElementById("realm-text");
 const loreBox = document.getElementById("lore-box");
 const sigilsText = document.getElementById("sigils");
 
+const consoleOverlay = document.getElementById("console-overlay");
+const consoleLog = document.getElementById("console-log");
+const consoleInput = document.getElementById("console-input");
+
+let consoleOpen = false;
+
 canvas.focus();
-canvas.addEventListener("click", () => canvas.focus());
+canvas.addEventListener("click", () => {
+  if (!consoleOpen) canvas.focus();
+});
 
 let unlocked = JSON.parse(localStorage.getItem("eden_abyss_endings")) || {
   eden: false,
@@ -113,7 +181,7 @@ let glitchTimer = 0;
 let flickerFrames = 0;
 let watcherStunTimer = 0;
 let flickerCooldown = 0;
-let hasFlickeredBefore = false; // Tracks if the first startling blip has occurred
+let hasFlickeredBefore = false;
 
 const player = {
   x: 50,
@@ -161,7 +229,7 @@ const watcher = {
   x: 550,
   y: 50,
   size: 28,
-  baseSpeed: 1.15
+  baseSpeed: 1.35 // Increased base speed
 };
 
 const abyssLore = [
@@ -176,17 +244,88 @@ const abyssLore = [
   "THE THRONE IS EMPTY. YOU HAVE BECOME THE WATCHER."
 ];
 
+// Console Command Parser
+function logToConsole(text) {
+  consoleLog.innerText += "\n" + text;
+  consoleLog.scrollTop = consoleLog.scrollHeight;
+}
+
+function processCommand(cmd) {
+  const cleanCmd = cmd.trim().toLowerCase();
+  logToConsole(`> ${cleanCmd}`);
+
+  if (cleanCmd === "help") {
+    logToConsole("AVAILABLE COMMANDS:\n - reset: Wipes all unlocked endings in localStorage\n - abyss: Instantly triggers the standard Abyss realm\n - trueabyss: Instantly triggers the Bottomless Pit\n - unlockall: Instantly unlocks all 4 endings\n - clear: Clears console terminal log");
+  } else if (cleanCmd === "reset") {
+    localStorage.removeItem("eden_abyss_endings");
+    unlocked = { eden: false, death: false, revelation: false, trueEnd: false };
+    updateSigilHUD();
+    resetGame();
+    logToConsole("[SYS]: All endings purged. LocalStorage cleared.");
+  } else if (cleanCmd === "abyss") {
+    triggerUpsideDown(false);
+    logToConsole("[SYS]: Forced entry into Sheol // The Abyss.");
+    toggleConsole();
+  } else if (cleanCmd === "trueabyss") {
+    triggerUpsideDown(true);
+    logToConsole("[SYS]: Forced entry into The Bottomless Pit.");
+    toggleConsole();
+  } else if (cleanCmd === "unlockall") {
+    unlocked = { eden: true, death: true, revelation: true, trueEnd: true };
+    localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
+    updateSigilHUD();
+    forbiddenFruit.active = true;
+    logToConsole("[SYS]: All endings unlocked. Forbidden fruit spawned.");
+  } else if (cleanCmd === "clear") {
+    consoleLog.innerText = "SYS_CONSOLE v1.0 [EDEN_ABYSS KERNEL]";
+  } else if (cleanCmd !== "") {
+    logToConsole(`[ERROR]: Unknown command '${cleanCmd}'. Type 'help' for options.`);
+  }
+  consoleInput.value = "";
+}
+
+function toggleConsole() {
+  consoleOpen = !consoleOpen;
+  if (consoleOpen) {
+    consoleOverlay.style.display = "flex";
+    consoleInput.focus();
+  } else {
+    consoleOverlay.style.display = "none";
+    canvas.focus();
+  }
+}
+
+consoleInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    processCommand(consoleInput.value);
+  } else if (e.key === "F1") {
+    e.preventDefault();
+    toggleConsole();
+  }
+});
+
 const keys = {};
 window.addEventListener("keydown", (e) => {
+  if (e.key === "F1") {
+    e.preventDefault();
+    toggleConsole();
+    return;
+  }
+
+  if (consoleOpen) return;
+
   keys[e.key.toLowerCase()] = true;
   if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(e.key.toLowerCase())) {
     e.preventDefault();
   }
+
   if (gameOver && e.key.toLowerCase() === "r") {
     resetGame();
   }
 });
+
 window.addEventListener("keyup", (e) => {
+  if (consoleOpen) return;
   keys[e.key.toLowerCase()] = false;
 });
 
@@ -225,7 +364,7 @@ function triggerUpsideDown(trueMode = false) {
   player.y = 200;
   watcher.x = 540;
   watcher.y = 200;
-  watcher.baseSpeed = trueMode ? 1.25 : 1.1;
+  watcher.baseSpeed = trueMode ? 1.45 : 1.35; // Faster initial Abyss speed
   
   realmText.innerText = trueMode ? "REALM: THE BOTTOMLESS PIT" : "REALM: SHEOL // THE ABYSS";
   realmText.style.color = "#ff2a2a";
@@ -280,7 +419,7 @@ function resetGame() {
   hasFlickeredBefore = false;
   player.x = 50;
   player.y = 200;
-  watcher.baseSpeed = 1.1;
+  watcher.baseSpeed = 1.35;
   
   canvas.style.borderColor = "#333";
   canvas.style.boxShadow = "0 0 20px rgba(0,0,0,0.8)";
@@ -344,22 +483,23 @@ function updateSanityBorder() {
 }
 
 function update() {
+  if (consoleOpen) return;
+
   if (shakeTime > 0) shakeTime--;
   if (flickerFrames > 0) flickerFrames--;
   if (watcherStunTimer > 0) watcherStunTimer--;
   if (flickerCooldown > 0) flickerCooldown--;
   if (gameOver) return;
 
-  // Unpredictable subliminal flicker after 8+ fruits (First one is always a quick blip, subsequent ones are random)
   if (!isUpsideDown && score >= 8 && flickerFrames === 0 && flickerCooldown === 0) {
     if (Math.random() < 0.0006) {
       if (!hasFlickeredBefore) {
-        flickerFrames = 2; // Guaranteed fast, intense first blip
+        flickerFrames = 2;
         hasFlickeredBefore = true;
       } else {
-        flickerFrames = Math.floor(Math.random() * 12) + 1; // Random duration thereafter
+        flickerFrames = Math.floor(Math.random() * 12) + 1;
       }
-      flickerCooldown = Math.floor(Math.random() * 360) + 240; // Randomized cooldown (~4s to 10s)
+      flickerCooldown = Math.floor(Math.random() * 360) + 240;
     }
   }
 
@@ -444,7 +584,8 @@ function update() {
       scoreText.innerText = `SEALS BROKEN: ${eyesCollected} / ${targetSeals}`;
       loreBox.innerText = abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)];
       
-      watcher.baseSpeed += isTrueAbyss ? 0.08 : 0.09;
+      // Sharper speed scaling per seal
+      watcher.baseSpeed += isTrueAbyss ? 0.11 : 0.12;
       watcherStunTimer = 36; 
       shakeTime = 20;
       
@@ -472,12 +613,13 @@ function update() {
     if (dist > 0) {
       let dynamicSpeed = watcher.baseSpeed;
       if (dist > 220) {
-        dynamicSpeed += 0.65;
+        dynamicSpeed += 0.75; // Closes distance even faster from afar
       } else if (dist < 85) {
-        dynamicSpeed -= 0.15;
+        dynamicSpeed -= 0.12; // Maintains the tight juke window when right on your heels
       }
 
-      const maxCap = isTrueAbyss ? 1.82 : 1.72;
+      // Slightly higher max cap so it stays menacing
+      const maxCap = isTrueAbyss ? 1.92 : 1.84;
       dynamicSpeed = Math.min(dynamicSpeed, maxCap);
 
       if (watcherStunTimer > 0) {
@@ -691,7 +833,7 @@ function draw() {
     }
   }
 
-    ctx.restore();
+  ctx.restore();
 }
 
 function loop() {
