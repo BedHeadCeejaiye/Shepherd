@@ -183,6 +183,7 @@ let flickerFrames = 0;
 let watcherStunTimer = 0;
 let flickerCooldown = 0;
 let hasFlickeredBefore = false;
+let watcherAmbushTimer = 0; // Tracks the initial rush towards the player
 
 // Paranoia State Variables (Real-Time Based)
 let playerStillTimer = performance.now();
@@ -196,7 +197,7 @@ const player = {
   x: 50,
   y: 200,
   size: 20,
-  speed: 360 // Increased speed for snappier response
+  speed: 360
 };
 
 let item = {
@@ -238,7 +239,7 @@ const watcher = {
   x: 550,
   y: 50,
   size: 28,
-  baseSpeed: 250 // Faster base speed for the Watcher
+  baseSpeed: 250
 };
 
 const abyssLore = [
@@ -451,6 +452,7 @@ function triggerUpsideDown(trueMode = false) {
   playerStillTimer = performance.now();
   isWhispering = false;
   phantomItem.active = false;
+  watcherAmbushTimer = 1.2; // 1.2 seconds of rushing straight at the player upon entering
   player.x = 60;
   player.y = 200;
   watcher.x = 540;
@@ -508,6 +510,7 @@ function resetGame() {
   watcherStunTimer = 0;
   flickerCooldown = 0;
   hasFlickeredBefore = false;
+  watcherAmbushTimer = 0;
   playerStillTimer = performance.now();
   isWhispering = false;
   phantomItem.active = false;
@@ -583,6 +586,7 @@ function update(dt) {
   if (flickerFrames > 0) flickerFrames -= dt * 60;
   if (watcherStunTimer > 0) watcherStunTimer -= dt * 60;
   if (flickerCooldown > 0) flickerCooldown -= dt * 60;
+  if (watcherAmbushTimer > 0) watcherAmbushTimer -= dt;
   if (gameOver) return;
 
   if (!isUpsideDown && score >= 8 && flickerFrames <= 0 && flickerCooldown <= 0) {
@@ -744,13 +748,17 @@ function update(dt) {
 
     if (dist > 0) {
       let dynamicSpeed = watcher.baseSpeed;
-      if (dist > 200) {
+
+      // Ambush rush: Watcher charges intensely right when entering the Abyss
+      if (watcherAmbushTimer > 0) {
+        dynamicSpeed += 320; 
+      } else if (dist > 200) {
         dynamicSpeed += 80;
       } else if (dist < 80) {
         dynamicSpeed -= 12;
       }
 
-      const maxCap = isTrueAbyss ? 330 : 310;
+      const maxCap = isTrueAbyss ? 450 : 420;
       dynamicSpeed = Math.min(dynamicSpeed, maxCap);
 
       if (watcherStunTimer > 0) {
