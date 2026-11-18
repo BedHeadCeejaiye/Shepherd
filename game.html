@@ -838,4 +838,922 @@ function toggleCodex() {
     // Realm 2: Sheol // The Abyss
     manuscript += "[ REALM II: SHEOL // THE ABYSS ]\n";
     if (unlocked.death || unlocked.revelation) {
-      manuscript += "  'To fall through the bleeding anomaly is to enter the basement of the simulation. Here, the green illusion
+      manuscript += "  'To fall through the bleeding anomaly is to enter the basement of the simulation. Here, the green illusion drops away, revealing raw hex code and weeping darkness. The Watcher hunts all who trespass here.'\n";
+      manuscript += "  --- EXCAVATED SEALS INSIDE THIS REALM (" + Math.min(savedSealsCount, 6) + "/6) ---\n";
+      const unlockedSealsInAbyss = Math.min(savedSealsCount, 6);
+      for (let i = 0; i < 6; i++) {
+        if (i < unlockedSealsInAbyss) {
+          manuscript += abyssSealCodexEntries[i] + "\n";
+        } else {
+          manuscript += "  - Seal " + (i+1) + ": [Buried deeper in the abyss. Shatter more seals to decode.]\n";
+        }
+      }
+      manuscript += "\n";
+    } else {
+      manuscript += "  * [ The text is charred and unreadable. Perish or explore the abyss to reveal the realm's secrets... ] *\n\n";
+    }
+
+    // Realm 3: The Bottomless Pit
+    manuscript += "[ REALM III: THE BOTTOMLESS PIT // ROOT ACCESS ]\n";
+    if (unlocked.trueEnd || savedSealsCount > 6) {
+      manuscript += "  'The deepest layer of all. Where rules break down entirely and the final crimson fruit ripens for those who conquered the lower dark.'\n";
+      manuscript += "  --- EXPANDED PIT SEALS (" + Math.max(0, savedSealsCount - 6) + "/3) ---\n";
+      for (let i = 6; i < 9; i++) {
+        if (savedSealsCount > i) {
+          manuscript += abyssSealCodexEntries[i] + "\n";
+        } else {
+          manuscript += "  - Seal " + (i+1) + ": [Locked inside the Bottomless Pit.]\n";
+        }
+      }
+      manuscript += "\n";
+    } else {
+      manuscript += "  * [ Sealed with a heavy wax stamp. Unlock the three base truths first... ] *\n\n";
+    }
+
+    // Realm 4: The Eighth Day (True Ending)
+    manuscript += "[ REALM IV: THE EIGHTH DAY // THE CROWN ]\n";
+    if (unlocked.trueEnd) {
+      manuscript += "  'And when the bottomless pit opened its jaws, we did not run. We hunted the watcher down. In consuming the core, the simulation collapsed into our hands. We hold the syntax. We are the architects now.'\n";
+    } else {
+      manuscript += "  * [ Hidden behind the 4th true hidden ending. Consume the watcher to decode this final page. ] *\n";
+    }
+
+    codexContent.innerText = manuscript;
+    codexOverlay.style.display = "flex";
+  } else {
+    codexOverlay.style.display = "none";
+    canvas.focus();
+  }
+}
+
+function processCommand(cmd) {
+  const parts = cmd.trim().toLowerCase().split(" ");
+  const baseCmd = parts[0];
+  logToConsole(`> ${cmd.trim()}`);
+
+  if (baseCmd === "help") {
+    logToConsole(
+      "AVAILABLE COMMANDS:\n" +
+      " - reset: Wipes all unlocked endings and seal counts in localStorage\n" +
+      " - abyss: Instantly triggers the standard Abyss realm\n" +
+      " - trueabyss: Instantly triggers the Bottomless Pit\n" +
+      " - flee: Instantly triggers the True Ending Chase Phase\n" +
+      " - unlockall: Instantly unlocks all 4 endings and all seal lore\n" +
+      " - godmode: Toggles invulnerability against The Watcher\n" +
+      " - speed <val>: Sets player speed (default: 360)\n" +
+      " - teleport: Warps player to a safe random location\n" +
+      " - clear: Clears console terminal log"
+    );
+  } else if (baseCmd === "reset") {
+    localStorage.removeItem("eden_abyss_endings");
+    localStorage.removeItem("eden_abyss_seals_count");
+    unlocked = { eden: false, death: false, revelation: false, trueEnd: false };
+    savedSealsCount = 0;
+    updateSigilHUD();
+    resetGame();
+    logToConsole("[SYS]: All endings and codex seals purged.");
+  } else if (baseCmd === "abyss") {
+    triggerUpsideDown(false);
+    logToConsole("[SYS]: Forced entry into Sheol // The Abyss.");
+    toggleConsole();
+  } else if (baseCmd === "trueabyss" || baseCmd === "flee") {
+    triggerUpsideDown(true);
+    if (baseCmd === "flee") {
+      isWatcherFleeing = true;
+      fleeGraceTimer = 0.2;
+      watcher.baseSpeed = 240;
+      scoreTextTop.innerText = "CONSUME THE WATCHER";
+      scoreTextBottom.innerText = "";
+      scoreTextTop.style.color = "#ffffff";
+      setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
+    }
+    logToConsole("[SYS]: Forced entry into Bottomless Pit // Hunt phase active.");
+    toggleConsole();
+  } else if (baseCmd === "unlockall") {
+    unlocked = { eden: true, death: true, revelation: true, trueEnd: true };
+    savedSealsCount = 9;
+    localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
+    localStorage.setItem("eden_abyss_seals_count", savedSealsCount);
+    updateSigilHUD();
+    checkForbiddenFruitSpawn();
+    logToConsole("[SYS]: All endings and codex seal fragments unlocked.");
+  } else if (baseCmd === "godmode") {
+    godMode = !godMode;
+    logToConsole(`[SYS]: Godmode is now ${godMode ? "ENABLED" : "DISABLED"}.`);
+  } else if (baseCmd === "speed") {
+    const val = parseFloat(parts[1]);
+    if (!isNaN(val) && val > 0 && val <= 1000) {
+      player.speed = val;
+      logToConsole(`[SYS]: Player speed set to ${val}.`);
+    } else {
+      logToConsole("[ERROR]: Usage: speed <number between 1 and 1000>");
+    }
+  } else if (baseCmd === "teleport") {
+    let valid = false;
+    while (!valid) {
+      player.x = 40 + Math.random() * (canvas.width - 100);
+      player.y = 40 + Math.random() * (canvas.height - 80);
+      valid = true;
+      if (!isUpsideDown) {
+        for (const tree of forestTrees) {
+          if (checkCollision(player.x, player.y, player.size, player.size, tree.x, tree.y, tree.width, tree.height)) {
+            valid = false;
+            break;
+          }
+        }
+      } else if (Math.hypot(player.x - watcher.x, player.y - watcher.y) < 180) {
+        valid = false;
+      }
+    }
+    logToConsole(`[SYS]: Teleported player to (${Math.round(player.x)}, ${Math.round(player.y)}).`);
+    toggleConsole();
+  } else if (baseCmd === "clear") {
+    consoleLog.innerText = "SYS_CONSOLE v1.9 [EDEN_ABYSS KERNEL]";
+  } else if (baseCmd !== "") {
+    logToConsole(`[ERROR]: Unknown command '${baseCmd}'. Type 'help' for options.`);
+  }
+  consoleInput.value = "";
+}
+
+function toggleConsole() {
+  consoleOpen = !consoleOpen;
+  if (consoleOpen) {
+    if (codexOpen) toggleCodex();
+    consoleOverlay.style.display = "flex";
+    consoleInput.focus();
+  } else {
+    consoleOverlay.style.display = "none";
+    canvas.focus();
+  }
+}
+
+consoleInput.addEventListener("keydown", (e) => {
+  unlockAudio();
+  if (e.key === "Enter") {
+    processCommand(consoleInput.value);
+  } else if (e.key === "F1") {
+    e.preventDefault();
+    toggleConsole();
+  }
+});
+
+const keys = {};
+window.addEventListener("keydown", (e) => {
+  unlockAudio();
+
+  if (e.key === "F1") {
+    e.preventDefault();
+    toggleConsole();
+    return;
+  }
+
+  if (e.key.toLowerCase() === "c" && !consoleOpen) {
+    e.preventDefault();
+    toggleCodex();
+    return;
+  }
+
+  if (consoleOpen || codexOpen) return;
+
+  keys[e.key.toLowerCase()] = true;
+  if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(e.key.toLowerCase())) {
+    e.preventDefault();
+  }
+
+  if (gameOver && e.key.toLowerCase() === "r") {
+    resetGame();
+  }
+});
+
+window.addEventListener("keyup", (e) => {
+  if (consoleOpen || codexOpen) return;
+  keys[e.key.toLowerCase()] = false;
+});
+
+function spawnItem() {
+  let valid = false;
+  while (!valid) {
+    item.x = 40 + Math.random() * (canvas.width - 120);
+    item.y = 40 + Math.random() * (canvas.height - 80);
+    valid = true;
+    if (!isUpsideDown) {
+      for (const tree of forestTrees) {
+        if (checkCollision(item.x, item.y, item.size, item.size, tree.x, tree.y, tree.width, tree.height)) {
+          valid = false;
+          break;
+        }
+      }
+      if (checkCollision(item.x, item.y, item.size, item.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
+        valid = false;
+      }
+    } else {
+      if (Math.hypot(item.x - watcher.x, item.y - watcher.y) < 90) {
+        valid = false;
+      }
+    }
+  }
+}
+
+function spawnPhantomItem() {
+  phantomItem.x = 50 + Math.random() * (canvas.width - 120);
+  phantomItem.y = 50 + Math.random() * (canvas.height - 100);
+  if (Math.hypot(phantomItem.x - item.x, phantomItem.y - item.y) > 120 &&
+      Math.hypot(phantomItem.x - player.x, phantomItem.y - player.y) > 100) {
+    phantomItem.active = true;
+    phantomItem.timer = 320;
+  }
+}
+
+function triggerUpsideDown(trueMode = false) {
+  isUpsideDown = true;
+  isTrueAbyss = trueMode;
+  targetSeals = trueMode ? 9 : 6;
+  shakeTime = trueMode ? 70 : 45;
+  watcherStunTimer = 45;
+  score = 0;
+  eyesCollected = 0;
+  playerStillTimer = performance.now();
+  isWhispering = false;
+  isWatcherFleeing = false;
+  fleeGraceTimer = 0;
+  watcherJukeTimer = 0;
+  watcherJukeOffset = 1.0;
+  watcherTrail = [];
+  subliminalGlyphs = [];
+  phantomItem.active = false;
+  player.x = 60;
+  player.y = 200;
+  watcher.x = 540;
+  watcher.y = 200;
+  watcher.baseSpeed = trueMode ? 350 : 330;
+  
+  realmText.innerText = trueMode ? "REALM: THE BOTTOMLESS PIT" : "REALM: SHEOL // THE ABYSS";
+  realmText.style.color = "#ff2a2a";
+  scoreTextTop.innerText = `SEALS BROKEN: ${eyesCollected}`;
+  scoreTextBottom.innerText = `/ ${targetSeals}`;
+  scoreTextTop.style.color = "#ff2a2a";
+  
+  loreBox.style.background = "#1a0505";
+  loreBox.style.borderLeft = "4px solid #ff0000";
+  loreBox.style.color = "#ff9999";
+  setLore(trueMode
+    ? "YOU CONSUMED THE CORE OF KNOWLEDGE. THE ABYSS KNOWS YOUR NAME."
+    : "YOU TOUCHED THE FORBIDDEN ROOT. THE SKY HAS ROLLED UP LIKE A SCROLL.");
+  spawnItem();
+}
+
+function handleAnomalyTouch() {
+  forbiddenTouches++;
+  shakeTime = 12;
+
+  const dx = (player.x + player.size / 2) - (anomaly.x + anomaly.width / 2);
+  const dy = (player.y + player.size / 2) - (anomaly.y + anomaly.height / 2);
+  const dist = Math.hypot(dx, dy) || 1;
+  player.x += (dx / dist) * 24;
+  player.y += (dy / dist) * 24;
+
+  if (forbiddenTouches === 1) {
+    setLore("The bark of this particular tree is unnaturally cold to the touch...");
+  } else if (forbiddenTouches === 2) {
+    setLore("A drop of black sap leaks from the grain. Something feels wrong.");
+  } else if (forbiddenTouches === 3) {
+    setLore("You hear faint whispers echoing up through the roots... Turn back.");
+  } else if (forbiddenTouches >= 4) {
+    triggerUpsideDown(false);
+  }
+}
+
+function resetGame() {
+  isUpsideDown = false;
+  isTrueAbyss = false;
+  gameOver = false;
+  won = false;
+  edenWon = false;
+  trueWon = false;
+  score = 0;
+  eyesCollected = 0;
+  targetSeals = 6;
+  forbiddenTouches = 0;
+  shakeTime = 0;
+  flickerFrames = 0;
+  watcherStunTimer = 0;
+  flickerCooldown = 0;
+  hasFlickeredBefore = false;
+  isWatcherFleeing = false;
+  fleeGraceTimer = 0;
+  watcherJukeTimer = 0;
+  watcherJukeOffset = 1.0;
+  watcherTrail = [];
+  subliminalGlyphs = [];
+  playerStillTimer = performance.now();
+  isWhispering = false;
+  phantomItem.active = false;
+  player.x = 50;
+  player.y = 200;
+  watcher.baseSpeed = 330;
+  
+  canvas.style.borderColor = "#333";
+  canvas.style.boxShadow = "0 0 20px rgba(0,0,0,0.8)";
+
+  checkForbiddenFruitSpawn();
+  
+  realmText.innerText = "REALM: EDEN'S GROVE";
+  realmText.style.color = "#a8e6cf";
+  scoreTextTop.innerText = `FRUITS GATHERED: ${score}`;
+  scoreTextBottom.innerText = `/ 20`;
+  scoreTextTop.style.color = "#ffffff";
+  
+  loreBox.style.background = "#161a23";
+  loreBox.style.borderLeft = "4px solid #558b2f";
+  loreBox.style.color = "#e0e0e0";
+  if (!forbiddenFruit.active) {
+    setLore('"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."');
+  }
+  
+  updateSigilHUD();
+  spawnItem();
+}
+
+function checkCollision(ax, ay, aw, ah, bx, by, bw, bh) {
+  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+function drawTree(x, y, style = "round") {
+  ctx.fillStyle = "#2e1c0c";
+  ctx.fillRect(x + 16, y + 22, 13, 20);
+
+  ctx.fillStyle = "#1b4d1b";
+  if (style === "boxy") {
+    ctx.fillRect(x + 5, y + 5, 35, 22);
+  } else {
+    ctx.beginPath();
+    ctx.arc(x + 22.5, y + 16, 19, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function updateSanityBorder() {
+  if (!isUpsideDown || gameOver) {
+    if (!gameOver) {
+      canvas.style.borderColor = "#333";
+      canvas.style.boxShadow = "0 0 20px rgba(0,0,0,0.8)";
+    }
+    return;
+  }
+
+  const dist = Math.hypot(player.x - watcher.x, player.y - watcher.y);
+  const proximity = Math.max(0, Math.min(1, 1 - (dist - 30) / 320));
+  const pulseSpeed = (isWatcherFleeing ? 0.3 : 0.08) + proximity * 0.25;
+  const pulse = (Math.sin(glitchTimer * pulseSpeed) + 1) / 2;
+
+  updateAmbientSoundscape(proximity, isUpsideDown, isTrueAbyss);
+
+  if (isWatcherFleeing) {
+    const now = performance.now();
+    if (now - lastHeartbeatTime > 520) {
+      playHeartbeat(1.1);
+      lastHeartbeatTime = now;
+    }
+  }
+
+  const alpha = (0.15 + proximity * 0.75) * (0.6 + pulse * 0.4);
+  const spread = Math.round(12 + proximity * 35 + pulse * 10);
+  const red = Math.round(120 + proximity * 135);
+
+  canvas.style.borderColor = `rgba(${red}, 15, 15, ${0.5 + proximity * 0.5})`;
+  canvas.style.boxShadow = `0 0 ${spread}px rgba(${red}, 0, 0, ${alpha.toFixed(2)})`;
+}
+
+function update(dt) {
+  if (consoleOpen || codexOpen) return;
+
+  if (!isUpsideDown) {
+    updateAmbientSoundscape(0, false, false);
+  }
+
+  if (shakeTime > 0) shakeTime -= dt * 60;
+  if (flickerFrames > 0) flickerFrames -= dt * 60;
+  if (watcherStunTimer > 0) watcherStunTimer -= dt * 60;
+  if (flickerCooldown > 0) flickerCooldown -= dt * 60;
+  if (fleeGraceTimer > 0) fleeGraceTimer -= dt;
+  if (gameOver) return;
+
+  if (isUpsideDown && Math.random() < 0.04) {
+    const texts = ["0x7FFF", "ABANDON", "SEAL_BROKEN", "NULL_PTR", "WATCHED", "SHEOL"];
+    subliminalGlyphs.push({
+      text: texts[Math.floor(Math.random() * texts.length)],
+      x: Math.random() * (canvas.width - 60),
+      y: Math.random() * (canvas.height - 30),
+      life: 25
+    });
+  }
+  for (let i = subliminalGlyphs.length - 1; i >= 0; i--) {
+    subliminalGlyphs[i].life--;
+    if (subliminalGlyphs[i].life <= 0) subliminalGlyphs.splice(i, 1);
+  }
+
+  if (!isUpsideDown && score >= 8 && flickerFrames <= 0 && flickerCooldown <= 0) {
+    if (Math.random() < 0.035 * dt) {
+      if (!hasFlickeredBefore) {
+        flickerFrames = 2;
+        hasFlickeredBefore = true;
+      } else {
+        flickerFrames = Math.floor(Math.random() * 12) + 1;
+      }
+      flickerCooldown = Math.floor(Math.random() * 360) + 240;
+      playFlickerSound();
+    }
+  }
+
+  let touchedAnomalyThisFrame = false;
+  let moveDistance = player.speed * dt;
+
+  let nextX = player.x;
+  if (keys["a"] || keys["arrowleft"]) nextX -= moveDistance;
+  if (keys["d"] || keys["arrowright"]) nextX += moveDistance;
+  nextX = Math.max(0, Math.min(canvas.width - player.size, nextX));
+  
+  let collidedX = false;
+  if (!isUpsideDown) {
+    for (const tree of forestTrees) {
+      if (checkCollision(nextX, player.y, player.size, player.size, tree.x, tree.y, tree.width, tree.height)) {
+        collidedX = true;
+        break;
+      }
+    }
+    if (checkCollision(nextX, player.y, player.size, player.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
+      collidedX = true;
+      touchedAnomalyThisFrame = true;
+    }
+  }
+  if (!collidedX) {
+    player.x = nextX;
+  }
+
+  let nextY = player.y;
+  if (keys["w"] || keys["arrowup"]) nextY -= moveDistance;
+  if (keys["s"] || keys["arrowdown"]) nextY += moveDistance;
+  nextY = Math.max(0, Math.min(canvas.height - player.size, nextY));
+  
+  let collidedY = false;
+  if (!isUpsideDown) {
+    for (const tree of forestTrees) {
+      if (checkCollision(player.x, nextY, player.size, player.size, tree.x, tree.y, tree.width, tree.height)) {
+        collidedY = true;
+        break;
+      }
+    }
+    if (checkCollision(player.x, nextY, player.size, player.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
+      collidedY = true;
+      touchedAnomalyThisFrame = true;
+    }
+  }
+  if (!collidedY) {
+    player.y = nextY;
+  }
+
+  const moved = (Math.abs(player.x - lastPlayerX) > 0.1 || Math.abs(player.y - lastPlayerY) > 0.1);
+  if (moved) {
+    playerStillTimer = performance.now();
+    lastPlayerX = player.x;
+    lastPlayerY = player.y;
+    if (isWhispering) {
+      isWhispering = false;
+      loreBox.style.color = isUpsideDown ? "#ff9999" : "#e0e0e0";
+      loreBox.style.fontStyle = "normal";
+      loreBox.innerText = savedLoreText;
+    }
+  } else {
+    if (!isWhispering && (performance.now() - playerStillTimer > 10000)) {
+      isWhispering = true;
+      const pool = isUpsideDown ? abyssWhispers : edenWhispers;
+      loreBox.style.color = "#ff5252";
+      loreBox.style.fontStyle = "italic";
+      loreBox.innerText = pool[Math.floor(Math.random() * pool.length)];
+    }
+  }
+
+  if (!isUpsideDown && touchedAnomalyThisFrame) {
+    handleAnomalyTouch();
+  }
+
+  if (!isUpsideDown && forbiddenFruit.active) {
+    if (checkCollision(player.x, player.y, player.size, player.size, forbiddenFruit.x, forbiddenFruit.y, forbiddenFruit.size, forbiddenFruit.size)) {
+      forbiddenFruit.active = false;
+      triggerUpsideDown(true);
+      return;
+    }
+  }
+
+  if (!isWatcherFleeing && checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
+    if (!isUpsideDown) {
+      playEdenCollectSound();
+      score++;
+      scoreTextTop.innerText = `FRUITS GATHERED: ${score}`;
+      if (score === 5) {
+        setLore("Deep in the woods, the shadows grow long. Something feels different near the eastern edge.");
+      } else if (score === 12) {
+        setLore("You remain faithful to the harvest, ignoring the strange pull from the east.");
+      }
+      
+      if (score >= 20) {
+        gameOver = true;
+        edenWon = true;
+        saveEnding("eden");
+        setLore("MATTHEW 25:21 — 'Well done, good and faithful servant. Enter into the joy of your master.'");
+      } else {
+        spawnItem();
+      }
+    } else {
+      if (isTrueAbyss) {
+        playPitCollectSound();
+      } else {
+        playAbyssCollectSound();
+      }
+
+      eyesCollected++;
+      recordSealCollected(); // Increment permanent seal tracking for the codex
+      scoreTextTop.innerText = `SEALS BROKEN: ${eyesCollected}`;
+      setLore(abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)]);
+      
+      watcher.baseSpeed += isTrueAbyss ? 18 : 20;
+      watcherStunTimer = 36; 
+      shakeTime = 20;
+      phantomItem.active = false;
+      
+      if (eyesCollected >= targetSeals) {
+        if (isTrueAbyss) {
+          if (!isWatcherFleeing) {
+            isWatcherFleeing = true;
+            fleeGraceTimer = 0.6; 
+            watcherStunTimer = 0; 
+            watcher.baseSpeed = 240; 
+            watcherJukeTimer = 0;
+            scoreTextTop.innerText = "CONSUME THE WATCHER";
+            scoreTextBottom.innerText = "";
+            scoreTextTop.style.color = "#ffffff";
+            setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
+            shakeTime = 40;
+          }
+        } else {
+          gameOver = true;
+          won = true;
+          saveEnding("revelation");
+          shakeTime = 9999;
+        }
+      } else {
+        spawnItem();
+      }
+    }
+  }
+
+  if (isUpsideDown) {
+    if (!isWatcherFleeing) {
+      if (!phantomItem.active && eyesCollected >= 1 && Math.random() < 0.12 * dt) {
+        spawnPhantomItem();
+      }
+      if (phantomItem.active) {
+        phantomItem.timer -= dt * 60;
+        const distToPhantom = Math.hypot((player.x + 10) - (phantomItem.x + 7), (player.y + 10) - (phantomItem.y + 7));
+        if (distToPhantom < 42 || phantomItem.timer <= 0) {
+          phantomItem.active = false;
+          if (distToPhantom < 42) {
+            shakeTime = 10;
+            setLore("A MIRAGE OF THE PIT. YOUR EYES DECEIVE YOU.");
+          }
+        }
+      }
+    }
+
+    const dx = player.x - watcher.x;
+    const dy = player.y - watcher.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist > 0) {
+      let dynamicSpeed = watcher.baseSpeed;
+
+      if (isWatcherFleeing) {
+        watcherJukeTimer -= dt;
+        if (watcherJukeTimer <= 0) {
+          watcherJukeTimer = 0.35 + Math.random() * 0.55;
+          watcherJukeOffset = (Math.random() < 0.5 ? 1 : -1) * (1.2 + Math.random() * 1.8);
+        }
+
+        let fleeX = -(dx / dist);
+        let fleeY = -(dy / dist);
+
+        let perpX = -fleeY * watcherJukeOffset;
+        let perpY = fleeX * watcherJukeOffset;
+        fleeX += perpX * 0.85;
+        fleeY += perpY * 0.85;
+
+        if (dist < 160) {
+          dynamicSpeed = 480; 
+        } else {
+          dynamicSpeed = 270;
+        }
+
+        if (watcher.x < 70) fleeX += 1.4;
+        if (watcher.x > canvas.width - 90) fleeX -= 1.4;
+        if (watcher.y < 70) fleeY += 1.4;
+        if (watcher.y > canvas.height - 90) fleeY -= 1.4;
+
+        const fleeNorm = Math.hypot(fleeX, fleeY) || 1;
+        watcher.x += (fleeX / fleeNorm) * dynamicSpeed * dt;
+        watcher.y += (fleeY / fleeNorm) * dynamicSpeed * dt;
+
+        watcher.x = Math.max(15, Math.min(canvas.width - 40, watcher.x));
+        watcher.y = Math.max(15, Math.min(canvas.height - 40, watcher.y));
+
+        watcherTrail.push({ x: watcher.x, y: watcher.y, life: 12 });
+        if (watcherTrail.length > 8) watcherTrail.shift();
+      } else {
+        if (watcherStunTimer > 0) {
+          dynamicSpeed *= 0.25;
+        }
+        watcher.x += (dx / dist) * dynamicSpeed * dt;
+        watcher.y += (dy / dist) * dynamicSpeed * dt;
+      }
+    }
+
+    for (let t of watcherTrail) {
+      t.life--;
+    }
+
+    if (isWatcherFleeing && fleeGraceTimer <= 0 && checkCollision(
+      player.x, player.y, player.size, player.size,
+      watcher.x, watcher.y, watcher.size, watcher.size
+    )) {
+      playTrueEndingSound();
+      gameOver = true;
+      trueWon = true;
+      saveEnding("trueEnd");
+      shakeTime = 9999;
+    }
+
+    const pad = 4;
+    if (!isWatcherFleeing && !godMode && checkCollision(
+      player.x, player.y, player.size, player.size,
+      watcher.x + pad, watcher.y + pad, watcher.size - pad * 2, watcher.size - pad * 2
+    )) {
+      playDeathSound();
+      gameOver = true;
+      won = false;
+      saveEnding("death");
+      shakeTime = 9999;
+    }
+  }
+
+  updateSanityBorder();
+  glitchTimer += dt * 60;
+}
+
+function drawWatcher(wx, wy, wsize, fleeing = false) {
+  if (fleeing) {
+    for (let t of watcherTrail) {
+      ctx.save();
+      ctx.translate(t.x + wsize / 2, t.y + wsize / 2);
+      ctx.strokeStyle = `rgba(255, 23, 68, ${t.life / 15})`;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(-16, -16, 32, 32);
+      ctx.restore();
+    }
+  }
+
+  ctx.save();
+  ctx.translate(wx + wsize / 2, wy + wsize / 2);
+  const rotSpeed = watcherStunTimer > 0 ? 0.03 : (fleeing ? 0.45 : 0.12);
+  ctx.rotate(glitchTimer * rotSpeed);
+  
+  ctx.strokeStyle = fleeing ? "#ffffff" : (watcherStunTimer > 0 ? "#ff8a80" : "#ff1744");
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-18, -18, 36, 36);
+  ctx.rotate(Math.PI / 4);
+  ctx.strokeRect(-18, -18, 36, 36);
+
+  ctx.fillStyle = fleeing ? "#ff1744" : "#ffffff";
+  ctx.beginPath();
+  ctx.arc(0, 0, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#000000";
+  ctx.beginPath();
+  ctx.arc(0, 0, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function draw() {
+  ctx.save();
+
+  if (shakeTime > 0) {
+    const dx = (Math.random() - 0.5) * 14;
+    const dy = (Math.random() - 0.5) * 14;
+    ctx.translate(dx, dy);
+  }
+
+  if (!isUpsideDown) {
+    const isFlickering = flickerFrames > 0;
+
+    ctx.fillStyle = isFlickering ? "#1c0303" : "#558b2f";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = isFlickering ? "#ff0000" : "#fff59d";
+    for (let i = 0; i < 10; i++) {
+      ctx.fillRect((i * 59) % 580, (i * 83) % 380, 4, 4);
+    }
+
+    if (isFlickering) {
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.ellipse(item.x + 7, item.y + 7, 12, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ff0000";
+      ctx.beginPath();
+      ctx.arc(item.x + 7, item.y + 7, 4, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.translate((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
+    } else {
+      ctx.fillStyle = "#ffd700";
+      ctx.beginPath();
+      ctx.arc(item.x + 7, item.y + 7, 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (forbiddenFruit.active) {
+      const glow = 5 + Math.sin(glitchTimer * 0.1) * 2;
+      ctx.fillStyle = "rgba(255, 23, 68, 0.35)";
+      ctx.beginPath();
+      ctx.arc(forbiddenFruit.x + 7, forbiddenFruit.y + 7, glow + 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#ff1744";
+      ctx.beginPath();
+      ctx.arc(forbiddenFruit.x + 7, forbiddenFruit.y + 7, 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (isFlickering) {
+      drawWatcher(anomaly.x - 15, anomaly.y - 10, 28);
+    }
+
+    ctx.fillStyle = godMode ? "#ffd700" : (isFlickering ? "#b0bec5" : "#ffffff");
+    ctx.fillRect(player.x, player.y, player.size, player.size);
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
+
+    for (const tree of forestTrees) {
+      drawTree(tree.x, tree.y, tree.style);
+    }
+
+    drawTree(anomaly.x, anomaly.y, anomaly.style);
+
+  } else {
+    ctx.fillStyle = isTrueAbyss ? "#050000" : "#090202";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = isTrueAbyss ? "#4a0000" : "#2a0808";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 8; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * 85, 0);
+      ctx.lineTo(i * 85 + 15, 60);
+      ctx.stroke();
+    }
+
+    ctx.font = "10px Courier New";
+    ctx.fillStyle = "rgba(255, 0, 0, 0.22)";
+    for (let g of subliminalGlyphs) {
+      ctx.fillText(g.text, g.x, g.y);
+    }
+
+    if (Math.floor(glitchTimer) % 10 < 2) {
+      ctx.fillStyle = "rgba(255, 0, 0, 0.08)";
+      ctx.fillRect(0, Math.random() * canvas.height, canvas.width, 4);
+    }
+
+    if (watcherStunTimer > 28) {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    if (!isWatcherFleeing) {
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.ellipse(item.x + 7, item.y + 7, 10, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ff0000";
+      ctx.beginPath();
+      ctx.arc(item.x + 7, item.y + 7, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (phantomItem.active && Math.floor(glitchTimer) % 6 < 4) {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+        ctx.beginPath();
+        ctx.ellipse(phantomItem.x + 7, phantomItem.y + 7, 10, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255, 0, 0, 0.55)";
+        ctx.beginPath();
+        ctx.arc(phantomItem.x + 7, phantomItem.y + 7, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    ctx.fillStyle = isWatcherFleeing ? "#ff1744" : (godMode ? "#ffd700" : "#b0bec5");
+    ctx.fillRect(player.x, player.y, player.size, player.size);
+
+    drawWatcher(watcher.x, watcher.y, watcher.size, isWatcherFleeing);
+
+    const visionRadius = isWatcherFleeing ? 260 : (isTrueAbyss ? 175 : 210);
+    const gradient = ctx.createRadialGradient(
+      player.x + 10, player.y + 10, 35,
+      player.x + 10, player.y + 10, visionRadius
+    );
+    gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+    gradient.addColorStop(1, "rgba(0, 0, 0, 0.95)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  if (gameOver) {
+    ctx.textAlign = "center";
+
+    if (edenWon) {
+      ctx.fillStyle = "rgba(255, 248, 220, 0.90)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#2e7d32";
+      ctx.font = "bold 22px Courier New";
+      ctx.fillText("THE OBEDIENT SHEPHERD", canvas.width / 2, 150);
+      ctx.fillStyle = "#333333";
+      ctx.font = "13px Courier New";
+      ctx.fillText("You tended the grove in peace and resisted temptation.", canvas.width / 2, 185);
+      ctx.fillStyle = "#666666";
+      ctx.font = "12px Courier New";
+      ctx.fillText("Press [R] to replay... but something feels off.", canvas.width / 2, 235);
+    } else if (trueWon) {
+      ctx.fillStyle = "rgba(5, 2, 8, 0.96)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2, canvas.height / 2, 40 + i * 35, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = "#ff1744";
+      ctx.font = "bold 18px Courier New";
+      ctx.fillText("[THE EIGHTH DAY // ROOT ACCESS GRANTED]", canvas.width / 2, 130);
+      
+      ctx.fillStyle = "#a8e6cf";
+      ctx.font = "11px Courier New";
+      ctx.fillText("memory_addr: 0x7fff5fbff800 -- status: WATCHER CONSUMED", canvas.width / 2, 165);
+      ctx.fillText("You did not escape the garden. You rewrote its syntax.", canvas.width / 2, 195);
+      
+      ctx.fillStyle = "#888888";
+      ctx.font = "12px Courier New";
+      ctx.fillText("Press [R] to re-compile reality.", canvas.width / 2, 245);
+    } else if (won) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#ff5252";
+      ctx.font = "bold 24px Courier New";
+      ctx.fillText("BE NOT AFRAID.", canvas.width / 2, 160);
+      ctx.fillStyle = "#cccccc";
+      ctx.font = "14px Courier New";
+      ctx.fillText("You gazed into the Abyss and survived the revelation.", canvas.width / 2, 195);
+      ctx.fillText("Press [R] to return to the beginning.", canvas.width / 2, 240);
+    } else {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#ff0000";
+      ctx.font = "bold 26px Courier New";
+      ctx.fillText("CAST INTO OUTER DARKNESS", canvas.width / 2, 160);
+      ctx.fillStyle = "#aaaaaa";
+      ctx.font = "14px Courier New";
+      ctx.fillText("Curiosity opened the pit. The Watcher claimed you.", canvas.width / 2, 195);
+      ctx.fillText("Press [R] to try again.", canvas.width / 2, 240);
+    }
+  }
+
+  ctx.restore();
+}
+
+let lastTime = performance.now();
+
+function loop(currentTime) {
+  let dt = (currentTime - lastTime) / 1000;
+  if (dt > 0.1) dt = 0.1;
+  lastTime = currentTime;
+
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+updateSigilHUD();
+checkForbiddenFruitSpawn();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
