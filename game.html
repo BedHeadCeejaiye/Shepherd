@@ -108,7 +108,7 @@
   
   <!-- F1 Console Terminal -->
   <div id="console-overlay">
-    <div id="console-log">SYS_CONSOLE v1.1 [EDEN_ABYSS KERNEL]
+    <div id="console-log">SYS_CONSOLE v1.2 [EDEN_ABYSS KERNEL]
 Type 'help' for available administrative commands. Press [F1] to close.
 --------------------------------------------------</div>
     <div id="console-input-line">
@@ -136,6 +136,40 @@ const consoleInput = document.getElementById("console-input");
 
 let consoleOpen = false;
 let godMode = false;
+
+// Web Audio API Heartbeat Context
+let audioCtx = null;
+let lastHeartbeatTime = 0;
+
+function playHeartbeat(intensity = 1.0) {
+  try {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = 'sine';
+    // Deep structural thud pitch
+    osc.frequency.setValueAtTime(55 * intensity, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.18);
+
+    gain.gain.setValueAtTime(0.6 * intensity, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.22);
+  } catch (e) {
+    // Audio context restricted before user interaction
+  }
+}
 
 canvas.focus();
 canvas.addEventListener("click", () => {
@@ -186,9 +220,13 @@ let hasFlickeredBefore = false;
 let isWatcherFleeing = false;
 let fleeGraceTimer = 0;
 
-// Watcher Juke Mechanics
+// Watcher Juke & Trail Mechanics
 let watcherJukeTimer = 0;
 let watcherJukeOffset = 1.0;
+let watcherTrail = []; // Stores recent positions for the glitch trail
+
+// Subliminal Glyphs Background Array
+let subliminalGlyphs = [];
 
 // Paranoia State Variables (Real-Time Based)
 let playerStillTimer = performance.now();
@@ -307,11 +345,11 @@ function processCommand(cmd) {
       " - reset: Wipes all unlocked endings in localStorage\n" +
       " - abyss: Instantly triggers the standard Abyss realm\n" +
       " - trueabyss: Instantly triggers the Bottomless Pit\n" +
+      " - flee: Instantly triggers the True Ending Chase Phase\n" +
       " - unlockall: Instantly unlocks all 4 endings\n" +
       " - godmode: Toggles invulnerability against The Watcher\n" +
       " - speed <val>: Sets player speed (default: 360)\n" +
       " - teleport: Warps player to a safe random location\n" +
-      " - flicker: Forces an immediate subliminal flicker\n" +
       " - clear: Clears console terminal log"
     );
   } else if (baseCmd === "reset") {
@@ -324,9 +362,17 @@ function processCommand(cmd) {
     triggerUpsideDown(false);
     logToConsole("[SYS]: Forced entry into Sheol // The Abyss.");
     toggleConsole();
-  } else if (baseCmd === "trueabyss") {
+  } else if (baseCmd === "trueabyss" || baseCmd === "flee") {
     triggerUpsideDown(true);
-    logToConsole("[SYS]: Forced entry into The Bottomless Pit.");
+    if (baseCmd === "flee") {
+      isWatcherFleeing = true;
+      fleeGraceTimer = 0.2;
+      watcher.baseSpeed = 240;
+      scoreText.innerText = "CONSUME THE WATCHER";
+      scoreText.style.color = "#ffffff";
+      setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
+    }
+    logToConsole("[SYS]: Forced entry into Bottomless Pit // Hunt phase active.");
     toggleConsole();
   } else if (baseCmd === "unlockall") {
     unlocked = { eden: true, death: true, revelation: true, trueEnd: true };
@@ -364,12 +410,8 @@ function processCommand(cmd) {
     }
     logToConsole(`[SYS]: Teleported player to (${Math.round(player.x)}, ${Math.round(player.y)}).`);
     toggleConsole();
-  } else if (baseCmd === "flicker") {
-    flickerFrames = 10;
-    logToConsole("[SYS]: Forced subliminal flicker.");
-    toggleConsole();
   } else if (baseCmd === "clear") {
-    consoleLog.innerText = "SYS_CONSOLE v1.1 [EDEN_ABYSS KERNEL]";
+    consoleLog.innerText = "SYS_CONSOLE v1.2 [EDEN_ABYSS KERNEL]";
   } else if (baseCmd !== "") {
     logToConsole(`[ERROR]: Unknown command '${baseCmd}'. Type 'help' for options.`);
   }
@@ -469,6 +511,8 @@ function triggerUpsideDown(trueMode = false) {
   fleeGraceTimer = 0;
   watcherJukeTimer = 0;
   watcherJukeOffset = 1.0;
+  watcherTrail = [];
+  subliminalGlyphs = [];
   phantomItem.active = false;
   player.x = 60;
   player.y = 200;
@@ -531,6 +575,8 @@ function resetGame() {
   fleeGraceTimer = 0;
   watcherJukeTimer = 0;
   watcherJukeOffset = 1.0;
+  watcherTrail = [];
+  subliminalGlyphs = [];
   playerStillTimer = performance.now();
   isWhispering = false;
   phantomItem.active = false;
@@ -588,8 +634,17 @@ function updateSanityBorder() {
 
   const dist = Math.hypot(player.x - watcher.x, player.y - watcher.y);
   const proximity = Math.max(0, Math.min(1, 1 - (dist - 30) / 320));
-  const pulseSpeed = 0.08 + proximity * 0.25;
+  const pulseSpeed = (isWatcherFleeing ? 0.3 : 0.08) + proximity * 0.25;
   const pulse = (Math.sin(glitchTimer * pulseSpeed) + 1) / 2;
+
+  // Heartbeat Audio trigger during the chase/flee phase
+  if (isWatcherFleeing) {
+    const now = performance.now();
+    if (now - lastHeartbeatTime > 450) {
+      playHeartbeat(1.2);
+      lastHeartbeatTime = now;
+    }
+  }
 
   const alpha = (0.15 + proximity * 0.75) * (0.6 + pulse * 0.4);
   const spread = Math.round(12 + proximity * 35 + pulse * 10);
@@ -608,6 +663,21 @@ function update(dt) {
   if (flickerCooldown > 0) flickerCooldown -= dt * 60;
   if (fleeGraceTimer > 0) fleeGraceTimer -= dt;
   if (gameOver) return;
+
+  // Spawn Subliminal Glyphs in Abyss/Pit realms
+  if (isUpsideDown && Math.random() < 0.04) {
+    const texts = ["0x7FFF", "ABANDON", "SEAL_BROKEN", "NULL_PTR", "WATCHED", "SHEOL"];
+    subliminalGlyphs.push({
+      text: texts[Math.floor(Math.random() * texts.length)],
+      x: Math.random() * (canvas.width - 60),
+      y: Math.random() * (canvas.height - 30),
+      life: 25
+    });
+  }
+  for (let i = subliminalGlyphs.length - 1; i >= 0; i--) {
+    subliminalGlyphs[i].life--;
+    if (subliminalGlyphs[i].life <= 0) subliminalGlyphs.splice(i, 1);
+  }
 
   if (!isUpsideDown && score >= 8 && flickerFrames <= 0 && flickerCooldown <= 0) {
     if (Math.random() < 0.035 * dt) {
@@ -782,31 +852,26 @@ function update(dt) {
       let dynamicSpeed = watcher.baseSpeed;
 
       if (isWatcherFleeing) {
-        // PREDICTIVE JUKE EVASION AI: Snaps to sudden side-step angles to fake out player pursuit
         watcherJukeTimer -= dt;
         if (watcherJukeTimer <= 0) {
-          watcherJukeTimer = 0.35 + Math.random() * 0.55; // Juke switch interval
-          // Randomly choose a sharp left or right juke bias multiplier
+          watcherJukeTimer = 0.35 + Math.random() * 0.55;
           watcherJukeOffset = (Math.random() < 0.5 ? 1 : -1) * (1.2 + Math.random() * 1.8);
         }
 
         let fleeX = -(dx / dist);
         let fleeY = -(dy / dist);
 
-        // Apply perpendicular juke vector for sharp side-stepping
         let perpX = -fleeY * watcherJukeOffset;
         let perpY = fleeX * watcherJukeOffset;
         fleeX += perpX * 0.85;
         fleeY += perpY * 0.85;
 
-        // Panic speed burst when you get too close (< 160px)
         if (dist < 160) {
           dynamicSpeed = 480; 
         } else {
           dynamicSpeed = 270;
         }
 
-        // Strong arena boundary wall push
         if (watcher.x < 70) fleeX += 1.4;
         if (watcher.x > canvas.width - 90) fleeX -= 1.4;
         if (watcher.y < 70) fleeY += 1.4;
@@ -818,6 +883,10 @@ function update(dt) {
 
         watcher.x = Math.max(15, Math.min(canvas.width - 40, watcher.x));
         watcher.y = Math.max(15, Math.min(canvas.height - 40, watcher.y));
+
+        // Push position into glitch trail buffer
+        watcherTrail.push({ x: watcher.x, y: watcher.y, life: 12 });
+        if (watcherTrail.length > 8) watcherTrail.shift();
       } else {
         if (watcherStunTimer > 0) {
           dynamicSpeed *= 0.25;
@@ -825,6 +894,11 @@ function update(dt) {
         watcher.x += (dx / dist) * dynamicSpeed * dt;
         watcher.y += (dy / dist) * dynamicSpeed * dt;
       }
+    }
+
+    // Decay trail life frames
+    for (let t of watcherTrail) {
+      t.life--;
     }
 
     if (isWatcherFleeing && fleeGraceTimer <= 0 && checkCollision(
@@ -854,6 +928,18 @@ function update(dt) {
 }
 
 function drawWatcher(wx, wy, wsize, fleeing = false) {
+  // Draw Glitch Distortion Trail during fleeing phase
+  if (fleeing) {
+    for (let t of watcherTrail) {
+      ctx.save();
+      ctx.translate(t.x + wsize / 2, t.y + wsize / 2);
+      ctx.strokeStyle = `rgba(255, 23, 68, ${t.life / 15})`;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(-16, -16, 32, 32);
+      ctx.restore();
+    }
+  }
+
   ctx.save();
   ctx.translate(wx + wsize / 2, wy + wsize / 2);
   const rotSpeed = watcherStunTimer > 0 ? 0.015 : (fleeing ? 0.25 : 0.05);
@@ -953,6 +1039,13 @@ function draw() {
       ctx.moveTo(i * 85, 0);
       ctx.lineTo(i * 85 + 15, 60);
       ctx.stroke();
+    }
+
+    // Render Subliminal Glyphs
+    ctx.font = "10px Courier New";
+    ctx.fillStyle = "rgba(255, 0, 0, 0.22)";
+    for (let g of subliminalGlyphs) {
+      ctx.fillText(g.text, g.x, g.y);
     }
 
     if (Math.floor(glitchTimer) % 10 < 2) {
