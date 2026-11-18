@@ -157,6 +157,7 @@ function resetGame() {
   score = 0;
   eyesCollected = 0;
   forbiddenTouches = 0;
+  shakeTime = 0; // <-- Resets the shake timer completely on restart!
   player.x = 100;
   player.y = 200;
   watcher.speed = 1.25;
@@ -178,7 +179,6 @@ function checkCollision(ax, ay, aw, ah, bx, by, bw, bh) {
 }
 
 function update() {
-  // Always tick down shakeTime if it's active, even if game is over
   if (shakeTime > 0) shakeTime--;
   if (gameOver) return;
 
@@ -208,7 +208,7 @@ function update() {
       if (eyesCollected >= 6) {
         gameOver = true;
         won = true;
-        shakeTime = 9999; // Keep shaking on win screen
+        shakeTime = 9999;
       } else {
         spawnItem();
       }
@@ -243,7 +243,7 @@ function update() {
     if (checkCollision(player.x, player.y, player.size, player.size, watcher.x, watcher.y, watcher.size, watcher.size)) {
       gameOver = true;
       won = false;
-      shakeTime = 9999; // Continuous intense shake on death screen until you press R
+      shakeTime = 9999;
     }
   }
 
