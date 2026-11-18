@@ -184,6 +184,7 @@ let watcherStunTimer = 0;
 let flickerCooldown = 0;
 let hasFlickeredBefore = false;
 let isWatcherFleeing = false;
+let fleeGraceTimer = 0; // Grace period buffer to prevent instant absorption
 
 // Paranoia State Variables (Real-Time Based)
 let playerStillTimer = performance.now();
@@ -453,6 +454,7 @@ function triggerUpsideDown(trueMode = false) {
   playerStillTimer = performance.now();
   isWhispering = false;
   isWatcherFleeing = false;
+  fleeGraceTimer = 0;
   phantomItem.active = false;
   player.x = 60;
   player.y = 200;
@@ -512,6 +514,7 @@ function resetGame() {
   flickerCooldown = 0;
   hasFlickeredBefore = false;
   isWatcherFleeing = false;
+  fleeGraceTimer = 0;
   playerStillTimer = performance.now();
   isWhispering = false;
   phantomItem.active = false;
@@ -587,6 +590,7 @@ function update(dt) {
   if (flickerFrames > 0) flickerFrames -= dt * 60;
   if (watcherStunTimer > 0) watcherStunTimer -= dt * 60;
   if (flickerCooldown > 0) flickerCooldown -= dt * 60;
+  if (fleeGraceTimer > 0) fleeGraceTimer -= dt;
   if (gameOver) return;
 
   if (!isUpsideDown && score >= 8 && flickerFrames <= 0 && flickerCooldown <= 0) {
@@ -714,9 +718,10 @@ function update(dt) {
       if (eyesCollected >= targetSeals) {
         if (isTrueAbyss) {
           if (!isWatcherFleeing) {
-            // Trigger Inverse Shepherd phase ONCE!
+            // Trigger Inverse Shepherd phase ONCE with a grace buffer!
             isWatcherFleeing = true;
-            watcherStunTimer = 0; // Remove stun so it starts running immediately
+            fleeGraceTimer = 0.6; // 0.6 seconds buffer so it doesn't instantly absorb on pickup
+            watcherStunTimer = 0; 
             watcher.baseSpeed = 220; // Slower than player (360) so you can corner it
             scoreText.innerText = "CONSUME THE WATCHER";
             scoreText.style.color = "#ffffff";
@@ -765,7 +770,6 @@ function update(dt) {
         let fleeX = -(dx / dist);
         let fleeY = -(dy / dist);
 
-        // Wall avoidance push so it doesn't just freeze against a single wall
         if (watcher.x < 50) fleeX += 0.8;
         if (watcher.x > canvas.width - 70) fleeX -= 0.8;
         if (watcher.y < 50) fleeY += 0.8;
@@ -786,8 +790,8 @@ function update(dt) {
       }
     }
 
-    // If you catch the fleeing Watcher in True Abyss, you achieve the True Ending!
-    if (isWatcherFleeing && checkCollision(
+    // If you catch the fleeing Watcher in True Abyss (after grace period), you win!
+    if (isWatcherFleeing && fleeGraceTimer <= 0 && checkCollision(
       player.x, player.y, player.size, player.size,
       watcher.x, watcher.y, watcher.size, watcher.size
     )) {
@@ -925,7 +929,6 @@ function draw() {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    // Hide the seal item once the hunt phase begins
     if (!isWatcherFleeing) {
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
@@ -983,7 +986,6 @@ function draw() {
       ctx.fillStyle = "rgba(5, 2, 8, 0.96)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Procedural shadow eyes expanding on the victory screen
       ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
       for (let i = 0; i < 5; i++) {
         ctx.beginPath();
