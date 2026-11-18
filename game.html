@@ -136,6 +136,50 @@
     line-height: 1.4;
     transition: all 0.3s ease;
   }
+
+  /* Progressive Lore Codex Modal Overlay */
+  #codex-overlay {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 560px;
+    height: 360px;
+    background: rgba(12, 16, 22, 0.97);
+    border: 2px solid #a8e6cf;
+    box-shadow: 0 0 25px rgba(168, 230, 207, 0.25);
+    display: none;
+    flex-direction: column;
+    padding: 15px;
+    box-sizing: border-box;
+    z-index: 100;
+    font-family: 'Courier New', Courier, monospace;
+  }
+  #codex-header {
+    font-size: 14px;
+    font-weight: bold;
+    color: #a8e6cf;
+    border-bottom: 1px solid #333;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+  }
+  #codex-content {
+    flex-grow: 1;
+    overflow-y: auto;
+    font-size: 12px;
+    color: #d0d0d0;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  #codex-footer {
+    border-top: 1px solid #333;
+    padding-top: 6px;
+    font-size: 11px;
+    color: #777;
+    text-align: center;
+  }
+
   /* Developer Console Overlay */
   #console-overlay {
     position: absolute;
@@ -211,6 +255,16 @@
   <div id="game-wrapper">
     <canvas id="gameCanvas" width="600" height="400" tabindex="0"></canvas>
     
+    <!-- Progressive Lore Codex Overlay (Press C) -->
+    <div id="codex-overlay">
+      <div id="codex-header">
+        <span>ARCHIVES // DECODED SYSTEM LOGS</span>
+        <span style="cursor: pointer;" onclick="toggleCodex()">[CLOSE]</span>
+      </div>
+      <div id="codex-content">Initializing memory banks...</div>
+      <div id="codex-footer">Press [C] or click [CLOSE] to return to simulation.</div>
+    </div>
+
     <!-- F1 Console Terminal -->
     <div id="console-overlay">
       <div id="console-log">SYS_CONSOLE v1.9 [EDEN_ABYSS KERNEL]
@@ -239,11 +293,15 @@ const sigilsText = document.getElementById("sigils");
 const crownSigil = document.getElementById("crown-sigil");
 const volumeSlider = document.getElementById("volume-slider");
 
+const codexOverlay = document.getElementById("codex-overlay");
+const codexContent = document.getElementById("codex-content");
+
 const consoleOverlay = document.getElementById("console-overlay");
 const consoleLog = document.getElementById("console-log");
 const consoleInput = document.getElementById("console-input");
 
 let consoleOpen = false;
+let codexOpen = false;
 let godMode = false;
 
 // ==================== PROCEDURAL FOREST & REALM AUDIO ENGINE ====================
@@ -567,7 +625,7 @@ function playHeartbeat(intensity = 1.0) {
 canvas.focus();
 canvas.addEventListener("click", () => {
   unlockAudio();
-  if (!consoleOpen) canvas.focus();
+  if (!consoleOpen && !codexOpen) canvas.focus();
 });
 
 let unlocked = JSON.parse(localStorage.getItem("eden_abyss_endings")) || {
@@ -728,6 +786,57 @@ function logToConsole(text) {
   consoleLog.scrollTop = consoleLog.scrollHeight;
 }
 
+function toggleCodex() {
+  codexOpen = !codexOpen;
+  if (codexOpen) {
+    if (consoleOpen) toggleConsole();
+    
+    let logText = "=== SIMULATION ARCHIVES // DECODED LOGS ===\n\n";
+    
+    logText += "[LOG 01: EDEN'S GROVE // THE SANDBOX]\n";
+    if (unlocked.eden) {
+      logText += "Status: DECODED ([LEAF])\n";
+      logText += "Notes: A closed-loop simulation designed for absolute compliance. Psalm 23 scripts govern your routine. Gathering 20 fruits proves obedience to the Architect.\n\n";
+    } else {
+      logText += "Status: [LOCKED]\n";
+      logText += "Hint: Complete the 20-fruit harvest in Eden's Grove without triggering anomalies.\n\n";
+    }
+
+    logText += "[LOG 02: THE FIREWALL // THE WATCHER]\n";
+    if (unlocked.death) {
+      logText += "Status: DECODED ([VOID])\n";
+      logText += "Notes: Not a demon, but an automated security daemon (Genesis 3:24). Its geometric rings and flaming square scan for unauthorized human recursion. Perishing to it logs your failure in outer darkness.\n\n";
+    } else {
+      logText += "Status: [LOCKED]\n";
+      logText += "Hint: Provoke the cold anomaly tree at the eastern edge and let The Watcher catch you.\n\n";
+    }
+
+    logText += "[LOG 03: THE BASEMENT // SHEOL // THE ABYSS]\n";
+    if (unlocked.revelation) {
+      logText += "Status: DECODED ([EYE])\n";
+      logText += "Notes: The memory leak beneath the render bounds. Raw hex code and ancient judgment fragments (Job, Revelation). Shattering all 6 seals proves endurance past the simulation's safety protocols.\n\n";
+    } else {
+      logText += "Status: [LOCKED]\n";
+      logText += "Hint: Fall into the abyss and break all 6 seals before time expires.\n\n";
+    }
+
+    logText += "[LOG 04: ROOT ACCESS // THE BOTTOMLESS PIT]\n";
+    if (unlocked.trueEnd) {
+      logText += "Status: DECODED ([CROWN])\n";
+      logText += "Notes: memory_addr: 0x7fff5fbff800. You did not escape the garden; you consumed the firewall daemon. You are now the system administrator.\n";
+    } else {
+      logText += "Status: [LOCKED]\n";
+      logText += "Hint: Unlock the three base sigils, consume the forbidden crimson fruit, and hunt down The Watcher.\n";
+    }
+
+    codexContent.innerText = logText;
+    codexOverlay.style.display = "flex";
+  } else {
+    codexOverlay.style.display = "none";
+    canvas.focus();
+  }
+}
+
 function processCommand(cmd) {
   const parts = cmd.trim().toLowerCase().split(" ");
   const baseCmd = parts[0];
@@ -736,6 +845,7 @@ function processCommand(cmd) {
   if (baseCmd === "help") {
     logToConsole(
       "AVAILABLE COMMANDS:\n" +
+      " - lore: Opens the progressive Codex archive window\n" +
       " - reset: Wipes all unlocked endings in localStorage\n" +
       " - abyss: Instantly triggers the standard Abyss realm\n" +
       " - trueabyss: Instantly triggers the Bottomless Pit\n" +
@@ -746,6 +856,9 @@ function processCommand(cmd) {
       " - teleport: Warps player to a safe random location\n" +
       " - clear: Clears console terminal log"
     );
+  } else if (baseCmd === "lore") {
+    toggleConsole();
+    toggleCodex();
   } else if (baseCmd === "reset") {
     localStorage.removeItem("eden_abyss_endings");
     unlocked = { eden: false, death: false, revelation: false, trueEnd: false };
@@ -816,6 +929,7 @@ function processCommand(cmd) {
 function toggleConsole() {
   consoleOpen = !consoleOpen;
   if (consoleOpen) {
+    if (codexOpen) toggleCodex();
     consoleOverlay.style.display = "flex";
     consoleInput.focus();
   } else {
@@ -844,7 +958,13 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 
-  if (consoleOpen) return;
+  if (e.key.toLowerCase() === "c" && !consoleOpen) {
+    e.preventDefault();
+    toggleCodex();
+    return;
+  }
+
+  if (consoleOpen || codexOpen) return;
 
   keys[e.key.toLowerCase()] = true;
   if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(e.key.toLowerCase())) {
@@ -857,7 +977,7 @@ window.addEventListener("keydown", (e) => {
 });
 
 window.addEventListener("keyup", (e) => {
-  if (consoleOpen) return;
+  if (consoleOpen || codexOpen) return;
   keys[e.key.toLowerCase()] = false;
 });
 
@@ -1056,7 +1176,7 @@ function updateSanityBorder() {
 }
 
 function update(dt) {
-  if (consoleOpen) return;
+  if (consoleOpen || codexOpen) return;
 
   if (!isUpsideDown) {
     updateAmbientSoundscape(0, false, false);
