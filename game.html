@@ -17,7 +17,7 @@
     border: 3px solid #333;
     border-radius: 4px;
     box-shadow: 0 0 20px rgba(0,0,0,0.8);
-    background-color: #558b2f; /* Deepened forest green */
+    background-color: #558b2f;
     outline: none;
   }
   #hud {
@@ -87,22 +87,22 @@ let item = {
   size: 14
 };
 
-// A dense forest of decoy trees scattered around the map
+// Decoy forest trees with physical dimensions for collision box testing
 const forestTrees = [
-  { x: 60, y: 50 },
-  { x: 180, y: 40 },
-  { x: 310, y: 70 },
-  { x: 440, y: 45 },
-  { x: 120, y: 160 },
-  { x: 250, y: 180 },
-  { x: 400, y: 150 },
-  { x: 70, y: 290 },
-  { x: 190, y: 320 },
-  { x: 330, y: 300 },
-  { x: 450, y: 280 }
+  { x: 60, y: 50, width: 45, height: 45 },
+  { x: 180, y: 40, width: 45, height: 45 },
+  { x: 310, y: 70, width: 45, height: 45 },
+  { x: 440, y: 45, width: 45, height: 45 },
+  { x: 120, y: 160, width: 45, height: 45 },
+  { x: 250, y: 180, width: 45, height: 45 },
+  { x: 400, y: 150, width: 45, height: 45 },
+  { x: 70, y: 290, width: 45, height: 45 },
+  { x: 190, y: 320, width: 45, height: 45 },
+  { x: 330, y: 300, width: 45, height: 45 },
+  { x: 450, y: 280, width: 45, height: 45 }
 ];
 
-// The Trigger Tree (Hidden in plain sight on the east side, but with dead grass around it)
+// The Trigger Tree
 const anomaly = {
   x: 520,
   y: 190,
@@ -207,14 +207,53 @@ function update() {
   if (shakeTime > 0) shakeTime--;
   if (gameOver) return;
 
-  if (keys["w"] || keys["arrowup"]) player.y -= player.speed;
-  if (keys["s"] || keys["arrowdown"]) player.y += player.speed;
-  if (keys["a"] || keys["arrowleft"]) player.x -= player.speed;
-  if (keys["d"] || keys["arrowright"]) player.x += player.speed;
+  // Handle X movement and check collisions separately for smooth sliding against trees
+  let nextX = player.x;
+  if (keys["a"] || keys["arrowleft"]) nextX -= player.speed;
+  if (keys["d"] || keys["arrowright"]) nextX += player.speed;
+  
+  nextX = Math.max(0, Math.min(canvas.width - player.size, nextX));
+  
+  let collidedX = false;
+  // Check collision with decoy trees on X axis
+  for (const tree of forestTrees) {
+    if (checkCollision(nextX, player.y, player.size, player.size, tree.x, tree.y, tree.width, tree.height)) {
+      collidedX = true;
+      break;
+    }
+  }
+  // Check collision with anomaly on X axis
+  if (!isUpsideDown && checkCollision(nextX, player.y, player.size, player.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
+    collidedX = true;
+  }
+  if (!collidedX) {
+    player.x = nextX;
+  }
 
-  player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
-  player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
+  // Handle Y movement and check collisions separately
+  let nextY = player.y;
+  if (keys["w"] || keys["arrowup"]) nextY -= player.speed;
+  if (keys["s"] || keys["arrowdown"]) nextY += player.speed;
+  
+  nextY = Math.max(0, Math.min(canvas.height - player.size, nextY));
+  
+  let collidedY = false;
+  // Check collision with decoy trees on Y axis
+  for (const tree of forestTrees) {
+    if (checkCollision(player.x, nextY, player.size, player.size, tree.x, tree.y, tree.width, tree.height)) {
+      collidedY = true;
+      break;
+    }
+  }
+  // Check collision with anomaly on Y axis
+  if (!isUpsideDown && checkCollision(player.x, nextY, player.size, player.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
+    collidedY = true;
+  }
+  if (!collidedY) {
+    player.y = nextY;
+  }
 
+  // Collectible item collision
   if (checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
     if (!isUpsideDown) {
       score++;
@@ -240,11 +279,13 @@ function update() {
     }
   }
 
+  // Check repeated interactions with the trigger tree
   if (!isUpsideDown) {
+    // If player actively pushes into the trigger tree multiple times
     if (checkCollision(player.x, player.y, player.size, player.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
       forbiddenTouches++;
       shakeTime = 12;
-      player.x -= 25;
+      player.x -= 25; // Bump back slightly
       
       if (forbiddenTouches === 1) {
         loreBox.innerText = "The bark of this particular tree is unnaturally cold to the touch...";
@@ -289,7 +330,7 @@ function draw() {
     ctx.fillStyle = "#558b2f";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Subtle dead grass patch hinting around the trigger tree
+    // Dead grass patch hinting around the trigger tree
     ctx.fillStyle = "#4a7527";
     ctx.beginPath();
     ctx.arc(anomaly.x + 22, anomaly.y + 20, 35, 0, Math.PI * 2);
@@ -313,12 +354,12 @@ function draw() {
     ctx.fillStyle = "#000000";
     ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
 
-    // Draw Decoy Forest Trees
+    // Draw Decoy Forest Trees (with solid hitboxes)
     for (const tree of forestTrees) {
       drawTree(tree.x, tree.y, false);
     }
 
-    // Draw the Trigger Tree (with a subtly darker shade for the observant)
+    // Draw the Trigger Tree
     drawTree(anomaly.x, anomaly.y, forbiddenTouches > 0);
 
   } else {
@@ -409,7 +450,7 @@ function draw() {
     }
   }
 
-  ctx.restore();
+    ctx.restore();
 }
 
 function loop() {
