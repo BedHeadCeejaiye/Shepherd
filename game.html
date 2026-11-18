@@ -196,7 +196,7 @@ const player = {
   x: 50,
   y: 200,
   size: 20,
-  speed: 125 // Pixels per second (frame-rate independent)
+  speed: 300 // Fast, snappy movement speed in pixels per second
 };
 
 let item = {
@@ -238,7 +238,7 @@ const watcher = {
   x: 550,
   y: 50,
   size: 28,
-  baseSpeed: 95 // Pixels per second
+  baseSpeed: 210 // Fast, relentless Watcher speed
 };
 
 const abyssLore = [
@@ -295,7 +295,7 @@ function processCommand(cmd) {
       " - trueabyss: Instantly triggers the Bottomless Pit\n" +
       " - unlockall: Instantly unlocks all 4 endings\n" +
       " - godmode: Toggles invulnerability against The Watcher\n" +
-      " - speed <val>: Sets player speed (default: 125)\n" +
+      " - speed <val>: Sets player speed (default: 300)\n" +
       " - teleport: Warps player to a safe random location\n" +
       " - flicker: Forces an immediate subliminal flicker\n" +
       " - clear: Clears console terminal log"
@@ -325,11 +325,11 @@ function processCommand(cmd) {
     logToConsole(`[SYS]: Godmode is now ${godMode ? "ENABLED" : "DISABLED"}.`);
   } else if (baseCmd === "speed") {
     const val = parseFloat(parts[1]);
-    if (!isNaN(val) && val > 0 && val <= 500) {
+    if (!isNaN(val) && val > 0 && val <= 1000) {
       player.speed = val;
       logToConsole(`[SYS]: Player speed set to ${val}.`);
     } else {
-      logToConsole("[ERROR]: Usage: speed <number between 1 and 500>");
+      logToConsole("[ERROR]: Usage: speed <number between 1 and 1000>");
     }
   } else if (baseCmd === "teleport") {
     let valid = false;
@@ -455,7 +455,7 @@ function triggerUpsideDown(trueMode = false) {
   player.y = 200;
   watcher.x = 540;
   watcher.y = 200;
-  watcher.baseSpeed = trueMode ? 100 : 95;
+  watcher.baseSpeed = trueMode ? 230 : 210;
   
   realmText.innerText = trueMode ? "REALM: THE BOTTOMLESS PIT" : "REALM: SHEOL // THE ABYSS";
   realmText.style.color = "#ff2a2a";
@@ -513,7 +513,7 @@ function resetGame() {
   phantomItem.active = false;
   player.x = 50;
   player.y = 200;
-  watcher.baseSpeed = 95;
+  watcher.baseSpeed = 210;
   
   canvas.style.borderColor = "#333";
   canvas.style.boxShadow = "0 0 20px rgba(0,0,0,0.8)";
@@ -586,7 +586,7 @@ function update(dt) {
   if (gameOver) return;
 
   if (!isUpsideDown && score >= 8 && flickerFrames <= 0 && flickerCooldown <= 0) {
-    if (Math.random() < 0.035 * dt) { // Probabilistic check scaled with dt
+    if (Math.random() < 0.035 * dt) {
       if (!hasFlickeredBefore) {
         flickerFrames = 2;
         hasFlickeredBefore = true;
@@ -701,7 +701,7 @@ function update(dt) {
       scoreText.innerText = `SEALS BROKEN: ${eyesCollected} / ${targetSeals}`;
       setLore(abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)]);
       
-      watcher.baseSpeed += isTrueAbyss ? 8 : 9;
+      watcher.baseSpeed += isTrueAbyss ? 12 : 14;
       watcherStunTimer = 36; 
       shakeTime = 20;
       phantomItem.active = false;
@@ -745,12 +745,12 @@ function update(dt) {
     if (dist > 0) {
       let dynamicSpeed = watcher.baseSpeed;
       if (dist > 200) {
-        dynamicSpeed += 55;
+        dynamicSpeed += 70;
       } else if (dist < 80) {
-        dynamicSpeed -= 5;
+        dynamicSpeed -= 10;
       }
 
-      const maxCap = isTrueAbyss ? 130 : 122;
+      const maxCap = isTrueAbyss ? 290 : 270;
       dynamicSpeed = Math.min(dynamicSpeed, maxCap);
 
       if (watcherStunTimer > 0) {
@@ -982,7 +982,7 @@ let lastTime = performance.now();
 
 function loop(currentTime) {
   let dt = (currentTime - lastTime) / 1000;
-  if (dt > 0.1) dt = 0.1; // Cap dt if tab loses focus to prevent giant physics jumps
+  if (dt > 0.1) dt = 0.1;
   lastTime = currentTime;
 
   update(dt);
