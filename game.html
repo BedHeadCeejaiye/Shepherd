@@ -229,10 +229,11 @@ function checkCollision(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 }
 
-function drawTree(x, y, isTainted) {
-  ctx.fillStyle = isTainted ? "#2b1111" : "#2e1c0c";
+// Standard tree drawing function used for both decoys and the trigger tree
+function drawTree(x, y) {
+  ctx.fillStyle = "#2e1c0c";
   ctx.fillRect(x + 15, y + 20, 15, 25);
-  ctx.fillStyle = isTainted ? "#4a0e0e" : "#1b4d1b";
+  ctx.fillStyle = "#1b4d1b";
   ctx.beginPath();
   ctx.arc(x + 22, y + 15, 22, 0, Math.PI * 2);
   ctx.fill();
@@ -244,7 +245,6 @@ function update() {
 
   let touchedAnomalyThisFrame = false;
 
-  // Handle X movement
   let nextX = player.x;
   if (keys["a"] || keys["arrowleft"]) nextX -= player.speed;
   if (keys["d"] || keys["arrowright"]) nextX += player.speed;
@@ -267,7 +267,6 @@ function update() {
     player.x = nextX;
   }
 
-  // Handle Y movement
   let nextY = player.y;
   if (keys["w"] || keys["arrowup"]) nextY -= player.speed;
   if (keys["s"] || keys["arrowdown"]) nextY += player.speed;
@@ -294,7 +293,6 @@ function update() {
     handleAnomalyTouch();
   }
 
-  // Collectible item collision
   if (checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
     if (!isUpsideDown) {
       score++;
@@ -329,7 +327,6 @@ function update() {
     }
   }
 
-  // Upside Down Watcher logic
   if (isUpsideDown) {
     const dx = player.x - watcher.x;
     const dy = player.y - watcher.y;
@@ -362,37 +359,34 @@ function draw() {
     ctx.fillStyle = "#558b2f";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Dead grass patch hinting around the trigger tree
+    // Subtle faded grass patch around the trigger tree (the only faint hint left)
     ctx.fillStyle = "#4a7527";
     ctx.beginPath();
     ctx.arc(anomaly.x + 22, anomaly.y + 20, 35, 0, Math.PI * 2);
     ctx.fill();
 
-    // Wildflower speckles on the forest floor
     ctx.fillStyle = "#fff59d";
     for (let i = 0; i < 10; i++) {
       ctx.fillRect((i * 59) % 580, (i * 83) % 380, 4, 4);
     }
 
-    // Golden Apple
     ctx.fillStyle = "#ffd700";
     ctx.beginPath();
     ctx.arc(item.x + 7, item.y + 7, 7, 0, Math.PI * 2);
     ctx.fill();
 
-    // Player
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(player.x, player.y, player.size, player.size);
     ctx.fillStyle = "#000000";
     ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
 
-    // Draw Decoy Forest Trees
+    // Draw all decoy trees
     for (const tree of forestTrees) {
-      drawTree(tree.x, tree.y, false);
+      drawTree(tree.x, tree.y);
     }
 
-    // Draw the Trigger Tree
-    drawTree(anomaly.x, anomaly.y, forbiddenTouches > 0);
+    // Draw the Trigger Tree (now completely identical to the decoys visually)
+    drawTree(anomaly.x, anomaly.y);
 
   } else {
     ctx.fillStyle = "#090202";
@@ -412,7 +406,6 @@ function draw() {
       ctx.fillRect(0, Math.random() * canvas.height, canvas.width, 4);
     }
 
-    // Collectible: The Ophanim Eye
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
     ctx.ellipse(item.x + 7, item.y + 7, 10, 6, 0, 0, Math.PI * 2);
@@ -422,11 +415,9 @@ function draw() {
     ctx.arc(item.x + 7, item.y + 7, 3.5, 0, Math.PI * 2);
     ctx.fill();
 
-    // Player
     ctx.fillStyle = "#b0bec5";
     ctx.fillRect(player.x, player.y, player.size, player.size);
 
-    // The Watcher
     ctx.save();
     ctx.translate(watcher.x + watcher.size / 2, watcher.y + watcher.size / 2);
     ctx.rotate(glitchTimer * 0.05);
@@ -461,7 +452,6 @@ function draw() {
     ctx.textAlign = "center";
 
     if (edenWon) {
-      // Peaceful Ending Overlay
       ctx.fillStyle = "rgba(255, 248, 220, 0.90)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#2e7d32";
@@ -472,9 +462,8 @@ function draw() {
       ctx.fillText("You tended the grove in peace and resisted temptation.", canvas.width / 2, 185);
       ctx.fillStyle = "#666666";
       ctx.font = "12px Courier New";
-      ctx.fillText("Press [R] to replay... or inspect the withered grass in the east.", canvas.width / 2, 235);
+      ctx.fillText("Press [R] to replay... but something feels off.", canvas.width / 2, 235);
     } else if (won) {
-      // Abyss Survival Ending
       ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#ff5252";
@@ -485,7 +474,6 @@ function draw() {
       ctx.fillText("You gazed into the Abyss and survived the revelation.", canvas.width / 2, 195);
       ctx.fillText("Press [R] to return to the beginning.", canvas.width / 2, 240);
     } else {
-      // Abyss Death Ending
       ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#ff0000";
