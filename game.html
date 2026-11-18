@@ -55,19 +55,37 @@
   .hud-left {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
   }
 
   .hud-right {
     display: flex;
     align-items: center;
     gap: 16px;
+    text-align: right;
+  }
+
+  #score-container {
+    display: flex;
+    flex-direction: column;
+    font-size: 13px;
+    line-height: 1.2;
+  }
+
+  #sigils-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
   }
 
   #sigils {
-    letter-spacing: 2px;
+    letter-spacing: 1px;
     font-size: 11px;
-    color: #666;
+  }
+
+  #crown-sigil {
+    font-size: 11px;
   }
   
   /* Minimalist Volume Control in HUD */
@@ -99,6 +117,12 @@
     border-radius: 50%;
     background: #a8e6cf;
     cursor: pointer;
+  }
+
+  #realm-text {
+    font-size: 12px;
+    max-width: 140px;
+    line-height: 1.2;
   }
 
   #lore-box {
@@ -165,8 +189,14 @@
 
 <div id="hud">
   <div class="hud-left">
-    <span id="score-text">FRUITS GATHERED: 0 / 20</span>
-    <span id="sigils" title="Unlocked Endings">[---] [---] [---]</span>
+    <div id="score-container">
+      <span id="score-text-top">FRUITS GATHERED: 0</span>
+      <span id="score-text-bottom" style="color: #888;">/ 20</span>
+    </div>
+    <div id="sigils-container">
+      <span id="sigils" title="Unlocked Endings">[---] [---] [---]</span>
+      <span id="crown-sigil"></span>
+    </div>
   </div>
   <div class="hud-right">
     <div class="volume-container" title="Master Volume">
@@ -201,10 +231,12 @@ Type 'help' for available administrative commands. Press [F1] to close.
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
-const scoreText = document.getElementById("score-text");
+const scoreTextTop = document.getElementById("score-text-top");
+const scoreTextBottom = document.getElementById("score-text-bottom");
 const realmText = document.getElementById("realm-text");
 const loreBox = document.getElementById("lore-box");
 const sigilsText = document.getElementById("sigils");
+const crownSigil = document.getElementById("crown-sigil");
 const volumeSlider = document.getElementById("volume-slider");
 
 const consoleOverlay = document.getElementById("console-overlay");
@@ -559,8 +591,13 @@ function updateSigilHUD() {
   const s1 = unlocked.eden ? "<span style='color:#a8e6cf'>[LEAF]</span>" : "[----]";
   const s2 = unlocked.death ? "<span style='color:#ff5252'>[VOID]</span>" : "[----]";
   const s3 = unlocked.revelation ? "<span style='color:#ffd700'>[EYE]</span>" : "[---]";
-  const s4 = unlocked.trueEnd ? " <span style='color:#ff1744'>[CROWN]</span>" : "";
-  sigilsText.innerHTML = `${s1} ${s2} ${s3}${s4}`;
+  sigilsText.innerHTML = `${s1} ${s2} ${s3}`;
+
+  if (unlocked.trueEnd) {
+    crownSigil.innerHTML = "<span style='color:#ff1744'>[CROWN]</span>";
+  } else {
+    crownSigil.innerHTML = "<span style='color:#555;'>[---]</span>";
+  }
 }
 
 let isUpsideDown = false;
@@ -725,8 +762,9 @@ function processCommand(cmd) {
       isWatcherFleeing = true;
       fleeGraceTimer = 0.2;
       watcher.baseSpeed = 240;
-      scoreText.innerText = "CONSUME THE WATCHER";
-      scoreText.style.color = "#ffffff";
+      scoreTextTop.innerText = "CONSUME THE WATCHER";
+      scoreTextBottom.innerText = "";
+      scoreTextTop.style.color = "#ffffff";
       setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
     }
     logToConsole("[SYS]: Forced entry into Bottomless Pit // Hunt phase active.");
@@ -882,8 +920,9 @@ function triggerUpsideDown(trueMode = false) {
   
   realmText.innerText = trueMode ? "REALM: THE BOTTOMLESS PIT" : "REALM: SHEOL // THE ABYSS";
   realmText.style.color = "#ff2a2a";
-  scoreText.innerText = `SEALS BROKEN: 0 / ${targetSeals}`;
-  scoreText.style.color = "#ff2a2a";
+  scoreTextTop.innerText = `SEALS BROKEN: ${eyesCollected}`;
+  scoreTextBottom.innerText = `/ ${targetSeals}`;
+  scoreTextTop.style.color = "#ff2a2a";
   
   loreBox.style.background = "#1a0505";
   loreBox.style.borderLeft = "4px solid #ff0000";
@@ -951,8 +990,9 @@ function resetGame() {
   
   realmText.innerText = "REALM: EDEN'S GROVE";
   realmText.style.color = "#a8e6cf";
-  scoreText.innerText = "FRUITS GATHERED: 0 / 20";
-  scoreText.style.color = "#ffffff";
+  scoreTextTop.innerText = `FRUITS GATHERED: ${score}`;
+  scoreTextBottom.innerText = `/ 20`;
+  scoreTextTop.style.color = "#ffffff";
   
   loreBox.style.background = "#161a23";
   loreBox.style.borderLeft = "4px solid #558b2f";
@@ -1140,7 +1180,7 @@ function update(dt) {
     if (!isUpsideDown) {
       playEdenCollectSound();
       score++;
-      scoreText.innerText = `FRUITS GATHERED: ${score} / 20`;
+      scoreTextTop.innerText = `FRUITS GATHERED: ${score}`;
       if (score === 5) {
         setLore("Deep in the woods, the shadows grow long. Something feels different near the eastern edge.");
       } else if (score === 12) {
@@ -1163,7 +1203,7 @@ function update(dt) {
       }
 
       eyesCollected++;
-      scoreText.innerText = `SEALS BROKEN: ${eyesCollected} / ${targetSeals}`;
+      scoreTextTop.innerText = `SEALS BROKEN: ${eyesCollected}`;
       setLore(abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)]);
       
       watcher.baseSpeed += isTrueAbyss ? 18 : 20;
@@ -1179,8 +1219,9 @@ function update(dt) {
             watcherStunTimer = 0; 
             watcher.baseSpeed = 240; 
             watcherJukeTimer = 0;
-            scoreText.innerText = "CONSUME THE WATCHER";
-            scoreText.style.color = "#ffffff";
+            scoreTextTop.innerText = "CONSUME THE WATCHER";
+            scoreTextBottom.innerText = "";
+            scoreTextTop.style.color = "#ffffff";
             setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
             shakeTime = 40;
           }
