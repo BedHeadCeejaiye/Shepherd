@@ -153,6 +153,7 @@ function saveEnding(key) {
   unlocked[key] = true;
   localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
   updateSigilHUD();
+  checkForbiddenFruitSpawn();
 }
 
 function allBaseEndingsUnlocked() {
@@ -213,6 +214,14 @@ const forbiddenFruit = {
   size: 14,
   active: false
 };
+
+function checkForbiddenFruitSpawn() {
+  unlocked = JSON.parse(localStorage.getItem("eden_abyss_endings")) || unlocked;
+  forbiddenFruit.active = allBaseEndingsUnlocked();
+  if (forbiddenFruit.active && !isUpsideDown && !gameOver) {
+    setLore("The three seals are remembered. A crimson fruit has fallen from the eastern tree...");
+  }
+}
 
 const forestTrees = [
   { x: 60, y: 50, width: 45, height: 45, style: "round" },
@@ -320,7 +329,7 @@ function processCommand(cmd) {
     unlocked = { eden: true, death: true, revelation: true, trueEnd: true };
     localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
     updateSigilHUD();
-    forbiddenFruit.active = true;
+    checkForbiddenFruitSpawn();
     logToConsole("[SYS]: All endings unlocked. Forbidden fruit spawned.");
   } else if (baseCmd === "godmode") {
     godMode = !godMode;
@@ -525,7 +534,7 @@ function resetGame() {
   canvas.style.borderColor = "#333";
   canvas.style.boxShadow = "0 0 20px rgba(0,0,0,0.8)";
 
-  forbiddenFruit.active = allBaseEndingsUnlocked();
+  checkForbiddenFruitSpawn();
   
   realmText.innerText = "REALM: EDEN'S GROVE";
   realmText.style.color = "#a8e6cf";
@@ -535,9 +544,9 @@ function resetGame() {
   loreBox.style.background = "#161a23";
   loreBox.style.borderLeft = "4px solid #558b2f";
   loreBox.style.color = "#e0e0e0";
-  setLore(forbiddenFruit.active
-    ? "The three seals are remembered. A crimson fruit has fallen from the eastern tree..."
-    : '"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."');
+  if (!forbiddenFruit.active) {
+    setLore('"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."');
+  }
   
   updateSigilHUD();
   spawnItem();
@@ -718,7 +727,6 @@ function update(dt) {
       if (eyesCollected >= targetSeals) {
         if (isTrueAbyss) {
           if (!isWatcherFleeing) {
-            // Trigger Inverse Shepherd phase with panic evasion
             isWatcherFleeing = true;
             fleeGraceTimer = 0.6; 
             watcherStunTimer = 0; 
@@ -766,25 +774,21 @@ function update(dt) {
       let dynamicSpeed = watcher.baseSpeed;
 
       if (isWatcherFleeing) {
-        // PANICKED EVASION AI: Erratic zig-zag jukes + speed bursts when close!
         let fleeX = -(dx / dist);
         let fleeY = -(dy / dist);
 
-        // Add wild erratic zig-zag behavior based on time
         let erraticFactor = Math.sin(glitchTimer * 0.3) * 1.1;
         let perpX = -fleeY * erraticFactor;
         let perpY = fleeX * erraticFactor;
         fleeX += perpX;
         fleeY += perpY;
 
-        // If player gets close (< 150px), Watcher panics and sprints away faster!
         if (dist < 150) {
-          dynamicSpeed = 460; // Frantic panic speed burst
+          dynamicSpeed = 460;
         } else {
           dynamicSpeed = 260;
         }
 
-        // Strong wall avoidance push
         if (watcher.x < 70) fleeX += 1.2;
         if (watcher.x > canvas.width - 90) fleeX -= 1.2;
         if (watcher.y < 70) fleeY += 1.2;
@@ -805,7 +809,6 @@ function update(dt) {
       }
     }
 
-    // If you catch the fleeing Watcher in True Abyss (after grace period), you win!
     if (isWatcherFleeing && fleeGraceTimer <= 0 && checkCollision(
       player.x, player.y, player.size, player.size,
       watcher.x, watcher.y, watcher.size, watcher.size
@@ -1059,6 +1062,7 @@ function loop(currentTime) {
 }
 
 updateSigilHUD();
+checkForbiddenFruitSpawn(); // Ensure fruit spawns on boot if endings are met
 requestAnimationFrame(loop);
 </script>
 </body>
