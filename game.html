@@ -184,8 +184,10 @@ let watcherStunTimer = 0;
 let flickerCooldown = 0;
 let hasFlickeredBefore = false;
 
-// Paranoia State Variables
-let idleFrames = 0;
+// Paranoia State Variables (Real-Time Based)
+let playerStillTimer = performance.now();
+let lastPlayerX = 50;
+let lastPlayerY = 200;
 let isWhispering = false;
 let savedLoreText = '"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."';
 let phantomItem = { x: 0, y: 0, active: false, timer: 0 };
@@ -446,7 +448,7 @@ function triggerUpsideDown(trueMode = false) {
   shakeTime = trueMode ? 70 : 45;
   watcherStunTimer = 45;
   score = 0;
-  idleFrames = 0;
+  playerStillTimer = performance.now();
   isWhispering = false;
   phantomItem.active = false;
   player.x = 60;
@@ -506,7 +508,7 @@ function resetGame() {
   watcherStunTimer = 0;
   flickerCooldown = 0;
   hasFlickeredBefore = false;
-  idleFrames = 0;
+  playerStillTimer = performance.now();
   isWhispering = false;
   phantomItem.active = false;
   player.x = 50;
@@ -596,8 +598,6 @@ function update() {
   }
 
   let touchedAnomalyThisFrame = false;
-  const prevX = player.x;
-  const prevY = player.y;
 
   let nextX = player.x;
   if (keys["a"] || keys["arrowleft"]) nextX -= player.speed;
@@ -643,27 +643,25 @@ function update() {
     player.y = nextY;
   }
 
-  // Stillness Check (Triggers after exactly 5 seconds / 300 frames)
-  const actualDeltaX = Math.abs(player.x - prevX);
-  const actualDeltaY = Math.abs(player.y - prevY);
-  const isStandingStill = (actualDeltaX < 0.01 && actualDeltaY < 0.01);
-
-  if (isStandingStill) {
-    idleFrames++;
-    if (idleFrames === 600) { 
-      isWhispering = true;
-      const pool = isUpsideDown ? abyssWhispers : edenWhispers;
-      loreBox.style.color = "#ff5252";
-      loreBox.style.fontStyle = "italic";
-      loreBox.innerText = pool[Math.floor(Math.random() * pool.length)];
-    }
-  } else {
-    idleFrames = 0;
+  // Real-Time Stillness Check (10000ms = exactly 10 seconds)
+  const moved = (Math.abs(player.x - lastPlayerX) > 0.1 || Math.abs(player.y - lastPlayerY) > 0.1);
+  if (moved) {
+    playerStillTimer = performance.now();
+    lastPlayerX = player.x;
+    lastPlayerY = player.y;
     if (isWhispering) {
       isWhispering = false;
       loreBox.style.color = isUpsideDown ? "#ff9999" : "#e0e0e0";
       loreBox.style.fontStyle = "normal";
       loreBox.innerText = savedLoreText;
+    }
+  } else {
+    if (!isWhispering && (performance.now() - playerStillTimer > 10000)) {
+      isWhispering = true;
+      const pool = isUpsideDown ? abyssWhispers : edenWhispers;
+      loreBox.style.color = "#ff5252";
+      loreBox.style.fontStyle = "italic";
+      loreBox.innerText = pool[Math.floor(Math.random() * pool.length)];
     }
   }
 
@@ -976,7 +974,7 @@ function draw() {
     }
   }
 
-  ctx.restore();
+    ctx.restore();
 }
 
 function loop() {
