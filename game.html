@@ -112,6 +112,7 @@ let shakeTime = 0;
 let glitchTimer = 0;
 let flickerFrames = 0;
 let watcherStunTimer = 0;
+let flickerCooldown = 0; // Enforces spacing between subliminal flickers
 
 const player = {
   x: 50,
@@ -205,7 +206,6 @@ function spawnItem() {
         valid = false;
       }
     } else {
-      // Avoid spawning an eye directly on top of the Watcher
       if (Math.hypot(item.x - watcher.x, item.y - watcher.y) < 90) {
         valid = false;
       }
@@ -218,7 +218,7 @@ function triggerUpsideDown(trueMode = false) {
   isTrueAbyss = trueMode;
   targetSeals = trueMode ? 9 : 6;
   shakeTime = trueMode ? 70 : 45;
-  watcherStunTimer = 45; // Brief head start when entering the Abyss
+  watcherStunTimer = 45;
   score = 0;
   player.x = 60;
   player.y = 200;
@@ -275,6 +275,7 @@ function resetGame() {
   shakeTime = 0;
   flickerFrames = 0;
   watcherStunTimer = 0;
+  flickerCooldown = 0;
   player.x = 50;
   player.y = 200;
   watcher.baseSpeed = 1.1;
@@ -344,10 +345,15 @@ function update() {
   if (shakeTime > 0) shakeTime--;
   if (flickerFrames > 0) flickerFrames--;
   if (watcherStunTimer > 0) watcherStunTimer--;
+  if (flickerCooldown > 0) flickerCooldown--;
   if (gameOver) return;
 
-  if (!isUpsideDown && score >= 8 && flickerFrames === 0 && Math.random() < 0.004) {
-    flickerFrames = 2;
+  // Rare, fairly random subliminal flicker with a cooldown after 8+ fruits
+  if (!isUpsideDown && score >= 8 && flickerFrames === 0 && flickerCooldown === 0) {
+    if (Math.random() < 0.0008) {
+      flickerFrames = 2;       // Quick 2-frame flash
+      flickerCooldown = 240;   // ~4 second cooldown before another can trigger
+    }
   }
 
   let touchedAnomalyThisFrame = false;
@@ -431,7 +437,6 @@ function update() {
       scoreText.innerText = `SEALS BROKEN: ${eyesCollected} / ${targetSeals}`;
       loreBox.innerText = abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)];
       
-      // Gentle speed scaling + brief stun on seal break for close-call escapes
       watcher.baseSpeed += isTrueAbyss ? 0.08 : 0.09;
       watcherStunTimer = 36; 
       shakeTime = 20;
@@ -458,19 +463,16 @@ function update() {
     const dist = Math.hypot(dx, dy);
 
     if (dist > 0) {
-      // Rubber-banding speed: rushes in from afar, slightly eases up when right on your heels
       let dynamicSpeed = watcher.baseSpeed;
       if (dist > 220) {
-        dynamicSpeed += 0.65; // Closes distance quickly so it's never off-screen for long
+        dynamicSpeed += 0.65;
       } else if (dist < 85) {
-        dynamicSpeed -= 0.15; // Gives you a fair chance to juke/dodge at the last second
+        dynamicSpeed -= 0.15;
       }
 
-      // Cap max speed so player can always out-maneuver it
       const maxCap = isTrueAbyss ? 1.82 : 1.72;
       dynamicSpeed = Math.min(dynamicSpeed, maxCap);
 
-      // Slow to a crawl if briefly stunned by a broken seal
       if (watcherStunTimer > 0) {
         dynamicSpeed *= 0.25;
       }
@@ -479,7 +481,6 @@ function update() {
       watcher.y += (dy / dist) * dynamicSpeed;
     }
 
-    // Forgiving hitbox (4px padding on each side) so grazing the outer rings feels thrilling
     const pad = 4;
     if (checkCollision(
       player.x, player.y, player.size, player.size,
@@ -499,7 +500,6 @@ function update() {
 function drawWatcher(wx, wy, wsize) {
   ctx.save();
   ctx.translate(wx + wsize / 2, wy + wsize / 2);
-  // Spin slower when briefly stunned by a broken seal
   const rotSpeed = watcherStunTimer > 0 ? 0.015 : 0.05;
   ctx.rotate(glitchTimer * rotSpeed);
   
@@ -602,7 +602,6 @@ function draw() {
       ctx.fillRect(0, Math.random() * canvas.height, canvas.width, 4);
     }
 
-    // Brief white flash overlay when a seal breaks and stuns the Watcher
     if (watcherStunTimer > 28) {
       ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -676,24 +675,3 @@ function draw() {
       ctx.fillStyle = "#ff0000";
       ctx.font = "bold 26px Courier New";
       ctx.fillText("CAST INTO OUTER DARKNESS", canvas.width / 2, 160);
-      ctx.fillStyle = "#aaaaaa";
-      ctx.font = "14px Courier New";
-      ctx.fillText("Curiosity opened the pit. The Watcher claimed you.", canvas.width / 2, 195);
-      ctx.fillText("Press [R] to try again.", canvas.width / 2, 240);
-    }
-  }
-
-  ctx.restore();
-}
-
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
-
-updateSigilHUD();
-loop();
-</script>
-</body>
-</html>
