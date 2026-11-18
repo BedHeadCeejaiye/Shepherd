@@ -184,7 +184,7 @@ let watcherStunTimer = 0;
 let flickerCooldown = 0;
 let hasFlickeredBefore = false;
 let isWatcherFleeing = false;
-let fleeGraceTimer = 0; // Grace period buffer to prevent instant absorption
+let fleeGraceTimer = 0;
 
 // Paranoia State Variables (Real-Time Based)
 let playerStillTimer = performance.now();
@@ -718,11 +718,11 @@ function update(dt) {
       if (eyesCollected >= targetSeals) {
         if (isTrueAbyss) {
           if (!isWatcherFleeing) {
-            // Trigger Inverse Shepherd phase ONCE with a grace buffer!
+            // Trigger Inverse Shepherd phase with panic evasion
             isWatcherFleeing = true;
-            fleeGraceTimer = 0.6; // 0.6 seconds buffer so it doesn't instantly absorb on pickup
+            fleeGraceTimer = 0.6; 
             watcherStunTimer = 0; 
-            watcher.baseSpeed = 220; // Slower than player (360) so you can corner it
+            watcher.baseSpeed = 240; 
             scoreText.innerText = "CONSUME THE WATCHER";
             scoreText.style.color = "#ffffff";
             setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
@@ -766,14 +766,29 @@ function update(dt) {
       let dynamicSpeed = watcher.baseSpeed;
 
       if (isWatcherFleeing) {
-        // FLEE FROM PLAYER: Run away and steer away from corners when trapped
+        // PANICKED EVASION AI: Erratic zig-zag jukes + speed bursts when close!
         let fleeX = -(dx / dist);
         let fleeY = -(dy / dist);
 
-        if (watcher.x < 50) fleeX += 0.8;
-        if (watcher.x > canvas.width - 70) fleeX -= 0.8;
-        if (watcher.y < 50) fleeY += 0.8;
-        if (watcher.y > canvas.height - 70) fleeY -= 0.8;
+        // Add wild erratic zig-zag behavior based on time
+        let erraticFactor = Math.sin(glitchTimer * 0.3) * 1.1;
+        let perpX = -fleeY * erraticFactor;
+        let perpY = fleeX * erraticFactor;
+        fleeX += perpX;
+        fleeY += perpY;
+
+        // If player gets close (< 150px), Watcher panics and sprints away faster!
+        if (dist < 150) {
+          dynamicSpeed = 460; // Frantic panic speed burst
+        } else {
+          dynamicSpeed = 260;
+        }
+
+        // Strong wall avoidance push
+        if (watcher.x < 70) fleeX += 1.2;
+        if (watcher.x > canvas.width - 90) fleeX -= 1.2;
+        if (watcher.y < 70) fleeY += 1.2;
+        if (watcher.y > canvas.height - 90) fleeY -= 1.2;
 
         const fleeNorm = Math.hypot(fleeX, fleeY) || 1;
         watcher.x += (fleeX / fleeNorm) * dynamicSpeed * dt;
@@ -820,7 +835,7 @@ function update(dt) {
 function drawWatcher(wx, wy, wsize, fleeing = false) {
   ctx.save();
   ctx.translate(wx + wsize / 2, wy + wsize / 2);
-  const rotSpeed = watcherStunTimer > 0 ? 0.015 : (fleeing ? 0.14 : 0.05);
+  const rotSpeed = watcherStunTimer > 0 ? 0.015 : (fleeing ? 0.22 : 0.05);
   ctx.rotate(glitchTimer * rotSpeed);
   
   ctx.strokeStyle = fleeing ? "#ffffff" : (watcherStunTimer > 0 ? "#ff8a80" : "#ff1744");
