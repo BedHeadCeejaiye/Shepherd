@@ -16,6 +16,8 @@
   }
   #game-wrapper {
     position: relative;
+    width: 606px;
+    height: 406px;
   }
   canvas {
     border: 3px solid #333;
@@ -24,6 +26,7 @@
     background-color: #558b2f;
     outline: none;
     transition: border-color 0.15s ease;
+    display: block;
   }
   #hud {
     width: 600px;
@@ -39,14 +42,14 @@
     font-size: 12px;
     color: #555;
   }
-  /* Floating Volume Widget on the side */
+  /* Sleek Volume Widget inside bottom-left corner so it never clips */
   #volume-widget {
     position: absolute;
-    bottom: 12px;
-    left: -70px;
-    background: rgba(22, 26, 35, 0.9);
-    border: 1px solid #333;
-    padding: 8px 10px;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(14, 17, 23, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 6px 8px;
     border-radius: 4px;
     display: flex;
     flex-direction: column;
@@ -54,14 +57,28 @@
     gap: 4px;
     font-size: 10px;
     color: #a8e6cf;
-    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    z-index: 20;
+    backdrop-filter: blur(2px);
+    transition: opacity 0.2s ease;
+  }
+  #volume-widget:hover {
+    background: rgba(14, 17, 23, 0.95);
+    border-color: #a8e6cf;
+  }
+  .slider-box {
+    width: 16px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   #volume-slider {
-    writing-mode: bt-lr; /* IE */
-    -webkit-appearance: slider-vertical;
-    width: 8px;
-    height: 70px;
+    width: 64px;
+    height: 4px;
+    transform: rotate(-90deg);
     cursor: pointer;
+    accent-color: #a8e6cf;
+    margin: 0;
   }
   #lore-box {
     width: 580px;
@@ -77,7 +94,8 @@
   /* Developer Console Overlay */
   #console-overlay {
     position: absolute;
-    top: 35px;
+    top: 25px;
+    left: 23px;
     width: 560px;
     height: 240px;
     background: rgba(10, 13, 18, 0.95);
@@ -131,17 +149,19 @@
 </div>
 
 <div id="game-wrapper">
-  <!-- Floating Side Volume Control -->
-  <div id="volume-widget">
+  <!-- Unclipped Floating Corner Volume Control -->
+  <div id="volume-widget" title="Master Volume">
     <span>VOL</span>
-    <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.35">
+    <div class="slider-box">
+      <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.45">
+    </div>
   </div>
 
   <canvas id="gameCanvas" width="600" height="400" tabindex="0"></canvas>
   
   <!-- F1 Console Terminal -->
   <div id="console-overlay">
-    <div id="console-log">SYS_CONSOLE v1.7 [EDEN_ABYSS KERNEL]
+    <div id="console-log">SYS_CONSOLE v1.8 [EDEN_ABYSS KERNEL]
 Type 'help' for available administrative commands. Press [F1] to close.
 --------------------------------------------------</div>
     <div id="console-input-line">
@@ -171,11 +191,18 @@ const consoleInput = document.getElementById("console-input");
 let consoleOpen = false;
 let godMode = false;
 
-// ==================== STRICT REALM AMBIENT & AUDIO ENGINE ====================
+// ==================== PROCEDURAL FOREST & REALM AUDIO ENGINE ====================
 let audioCtx = null;
 let masterGain = null;
-let ambientOsc1 = null;
-let ambientOsc2 = null;
+
+// Abyss / Pit Continuous Drones (Strictly muted in Eden)
+let abyssOsc1 = null;
+let abyssOsc2 = null;
+let abyssDroneGain = null;
+
+// Eden Gentle Stream / Wind Loop (Strictly muted in Abyss/Pit)
+let brookGain = null;
+let nextBirdTime = 0;
 let lastHeartbeatTime = 0;
 
 function initAudioEngine() {
@@ -186,25 +213,59 @@ function initAudioEngine() {
     masterGain.gain.setValueAtTime(parseFloat(volumeSlider.value), audioCtx.currentTime);
     masterGain.connect(audioCtx.destination);
 
-    ambientOsc1 = audioCtx.createOscillator();
-    ambientOsc1.type = "sine";
-    ambientOsc1.frequency.setValueAtTime(130.81, audioCtx.currentTime); // C3
+    // 1. EDEN GENTLE BROOK / BREEZE NOISE BUFFER
+    const bufferSize = audioCtx.sampleRate * 3;
+    const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    let lastOut = 0.0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      output[i] = (lastOut + (0.02 * white)) / 1.02; // Smooth brown noise
+      lastOut = output[i];
+      output[i] *= 1.8;
+    }
 
-    const osc1Gain = audioCtx.createGain();
-    osc1Gain.gain.setValueAtTime(0.09, audioCtx.currentTime);
-    ambientOsc1.connect(osc1Gain);
-    osc1Gain.connect(masterGain);
-    ambientOsc1.start();
+    const whiteNoise = audioCtx.createBufferSource();
+    whiteNoise.buffer = noiseBuffer;
+    whiteNoise.loop = true;
 
-    ambientOsc2 = audioCtx.createOscillator();
-    ambientOsc2.type = "triangle";
-    ambientOsc2.frequency.setValueAtTime(196.00, audioCtx.currentTime); // G3
+    const brookFilter = audioCtx.createBiquadFilter();
+    brookFilter.type = "bandpass";
+    brookFilter.frequency.setValueAtTime(420, audioCtx.currentTime);
+    brookFilter.Q.setValueAtTime(0.7, audioCtx.currentTime);
 
-    const osc2Gain = audioCtx.createGain();
-    osc2Gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-    ambientOsc2.connect(osc2Gain);
-    osc2Gain.connect(masterGain);
-    ambientOsc2.start();
+    brookGain = audioCtx.createGain();
+    brookGain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+
+    whiteNoise.connect(brookFilter);
+    brookFilter.connect(brookGain);
+    brookGain.connect(masterGain);
+    whiteNoise.start(0);
+
+    // 2. ABYSS & PIT HORROR DRONES (Starts at 0 volume so Eden is completely drone-free)
+    abyssDroneGain = audioCtx.createGain();
+    abyssDroneGain.gain.setValueAtTime(0.0, audioCtx.currentTime);
+    abyssDroneGain.connect(masterGain);
+
+    abyssOsc1 = audioCtx.createOscillator();
+    abyssOsc1.type = "triangle";
+    abyssOsc1.frequency.setValueAtTime(65.41, audioCtx.currentTime);
+    const g1 = audioCtx.createGain();
+    g1.gain.setValueAtTime(0.14, audioCtx.currentTime);
+    abyssOsc1.connect(g1);
+    g1.connect(abyssDroneGain);
+    abyssOsc1.start();
+
+    abyssOsc2 = audioCtx.createOscillator();
+    abyssOsc2.type = "sawtooth";
+    abyssOsc2.frequency.setValueAtTime(73.42, audioCtx.currentTime);
+    const g2 = audioCtx.createGain();
+    g2.gain.setValueAtTime(0.07, audioCtx.currentTime);
+    abyssOsc2.connect(g2);
+    g2.connect(abyssDroneGain);
+    abyssOsc2.start();
+
+    nextBirdTime = performance.now() + 1200;
   } catch (e) {}
 }
 
@@ -217,36 +278,127 @@ function unlockAudio() {
   }
 }
 
-// Volume slider control
 volumeSlider.addEventListener("input", (e) => {
+  unlockAudio();
   if (masterGain && audioCtx) {
     masterGain.gain.setValueAtTime(parseFloat(e.target.value), audioCtx.currentTime);
   }
 });
 
-// Strictly isolates audio per dimension
+// Procedural Forest Birdsong Chirp (Plays strictly in Eden's Grove)
+function playBirdChirp() {
+  if (!audioCtx || audioCtx.state !== "running" || isUpsideDown || gameOver) return;
+  try {
+    const now = audioCtx.currentTime;
+    const notesCount = Math.random() < 0.45 ? 2 : 1; // Single chirp or double trill
+    const baseFreq = 2200 + Math.random() * 1100;
+
+    for (let n = 0; n < notesCount; n++) {
+      const start = now + n * 0.14;
+      const dur = 0.09 + Math.random() * 0.05;
+
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(baseFreq, start);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.28, start + dur * 0.6);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.92, start + dur);
+
+      gain.gain.setValueAtTime(0.001, start);
+      gain.gain.linearRampToValueAtTime(0.045, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+
+      osc.connect(gain);
+      gain.connect(masterGain);
+
+      osc.start(start);
+      osc.stop(start + dur + 0.01);
+    }
+  } catch (e) {}
+}
+
+// Sharp Static / Sub-Bass Glitch Sound for Eden Flickers
+function playFlickerSound() {
+  try {
+    unlockAudio();
+    const now = audioCtx.currentTime;
+
+    // 1. Harsh high-voltage static burst
+    const bufferSize = Math.floor(audioCtx.sampleRate * 0.14);
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.4));
+    }
+
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.setValueAtTime(1800, now);
+    filter.Q.setValueAtTime(1.5, now);
+
+    const noiseGain = audioCtx.createGain();
+    noiseGain.gain.setValueAtTime(0.28, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(masterGain);
+    noise.start(now);
+
+    // 2. Low sub-bass jolt
+    const sub = audioCtx.createOscillator();
+    const subGain = audioCtx.createGain();
+    sub.type = "sawtooth";
+    sub.frequency.setValueAtTime(95, now);
+    sub.frequency.exponentialRampToValueAtTime(32, now + 0.15);
+
+    subGain.gain.setValueAtTime(0.25, now);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+
+    sub.connect(subGain);
+    subGain.connect(masterGain);
+    sub.start(now);
+    sub.stop(now + 0.16);
+  } catch (e) {}
+}
+
+// Strictly isolates ambient audio per dimension
 function updateAmbientSoundscape(proximity, isAbyss, isPit) {
-  if (!audioCtx || audioCtx.state !== 'running') return;
+  if (!audioCtx || audioCtx.state !== "running") return;
   const now = audioCtx.currentTime;
 
   if (!isAbyss) {
-    // EDEN'S GROVE: Eerie yet peaceful (Suspended floating 5th interval with a haunting undertone)
-    ambientOsc1.type = "sine";
-    ambientOsc1.frequency.setTargetAtTime(130.81, now, 1.0); // C3
-    ambientOsc2.type = "triangle";
-    ambientOsc2.frequency.setTargetAtTime(246.94, now, 1.0); // B3 (dreamy/uneasy harmonic)
+    // EDEN'S GROVE: Brook & birds ON, horror drones strictly OFF
+    brookGain.gain.setTargetAtTime(0.08, now, 0.4);
+    abyssDroneGain.gain.setTargetAtTime(0.0, now, 0.2);
+
+    const perfNow = performance.now();
+    if (perfNow >= nextBirdTime) {
+      playBirdChirp();
+      nextBirdTime = perfNow + 2200 + Math.random() * 3800; // Natural random spacing
+    }
   } else if (!isPit) {
-    // SHEOL // ABYSS: Ominous deep drone
-    ambientOsc1.type = "triangle";
-    ambientOsc1.frequency.setTargetAtTime(65.41 - (proximity * 15), now, 0.5);
-    ambientOsc2.type = "sawtooth";
-    ambientOsc2.frequency.setTargetAtTime(73.42 + (proximity * 25), now, 0.5);
+    // SHEOL // ABYSS: Brook OFF, deep ominous drone ON
+    brookGain.gain.setTargetAtTime(0.0, now, 0.2);
+    abyssDroneGain.gain.setTargetAtTime(1.0, now, 0.4);
+
+    abyssOsc1.type = "triangle";
+    abyssOsc1.frequency.setTargetAtTime(65.41 - (proximity * 15), now, 0.5);
+    abyssOsc2.type = "sawtooth";
+    abyssOsc2.frequency.setTargetAtTime(73.42 + (proximity * 25), now, 0.5);
   } else {
-    // BOTTOMLESS PIT: Aggressive industrial glitch hum
-    ambientOsc1.type = "sawtooth";
-    ambientOsc1.frequency.setTargetAtTime(55.00 + (proximity * 40), now, 0.2);
-    ambientOsc2.type = "square";
-    ambientOsc2.frequency.setTargetAtTime(82.41 + (proximity * 50), now, 0.2);
+    // BOTTOMLESS PIT: Brook OFF, industrial glitch hum ON
+    brookGain.gain.setTargetAtTime(0.0, now, 0.2);
+    abyssDroneGain.gain.setTargetAtTime(1.15, now, 0.3);
+
+    abyssOsc1.type = "sawtooth";
+    abyssOsc1.frequency.setTargetAtTime(55.00 + (proximity * 40), now, 0.2);
+    abyssOsc2.type = "square";
+    abyssOsc2.frequency.setTargetAtTime(82.41 + (proximity * 50), now, 0.2);
   }
 }
 
@@ -366,7 +518,7 @@ function playHeartbeat(intensity = 1.0) {
     triggerThump(now + 0.14, 65 * intensity, 0.55);
   } catch (e) {}
 }
-// =================================================================
+// ================================================================================
 
 canvas.focus();
 canvas.addEventListener("click", () => {
@@ -604,7 +756,7 @@ function processCommand(cmd) {
     logToConsole(`[SYS]: Teleported player to (${Math.round(player.x)}, ${Math.round(player.y)}).`);
     toggleConsole();
   } else if (baseCmd === "clear") {
-    consoleLog.innerText = "SYS_CONSOLE v1.7 [EDEN_ABYSS KERNEL]";
+    consoleLog.innerText = "SYS_CONSOLE v1.8 [EDEN_ABYSS KERNEL]";
   } else if (baseCmd !== "") {
     logToConsole(`[ERROR]: Unknown command '${baseCmd}'. Type 'help' for options.`);
   }
@@ -879,6 +1031,7 @@ function update(dt) {
     if (subliminalGlyphs[i].life <= 0) subliminalGlyphs.splice(i, 1);
   }
 
+  // Trigger Eden Glitch Flicker + Synchronized Static Sound
   if (!isUpsideDown && score >= 8 && flickerFrames <= 0 && flickerCooldown <= 0) {
     if (Math.random() < 0.035 * dt) {
       if (!hasFlickeredBefore) {
@@ -888,6 +1041,7 @@ function update(dt) {
         flickerFrames = Math.floor(Math.random() * 12) + 1;
       }
       flickerCooldown = Math.floor(Math.random() * 360) + 240;
+      playFlickerSound();
     }
   }
 
