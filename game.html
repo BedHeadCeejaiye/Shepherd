@@ -19,8 +19,9 @@
     height: 400px;
   }
   canvas {
-    border: 2px solid #333;
+    border: 3px solid #333;
     border-radius: 4px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.8);
     background-color: #558b2f;
     outline: none;
     display: block;
@@ -30,41 +31,38 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 6px;
-    font-size: 13px;
+    margin-bottom: 8px;
+    font-size: 14px;
     font-weight: bold;
   }
   #sigils {
     letter-spacing: 2px;
-    font-size: 11px;
+    font-size: 12px;
     color: #555;
   }
-  /* Small, transparent, minimalist volume slider on the bottom right inside the canvas */
+  /* Minimal, transparent volume slider docked neatly in the bottom-right corner */
   #volume-dock {
     position: absolute;
-    bottom: 8px;
-    right: 8px;
-    background: rgba(14, 17, 23, 0.45);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    bottom: 10px;
+    right: 10px;
+    background: rgba(14, 17, 23, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 4px;
-    padding: 4px 6px;
+    padding: 4px 8px;
     display: flex;
     align-items: center;
     gap: 6px;
-    z-index: 10;
+    z-index: 20;
     backdrop-filter: blur(2px);
-    transition: background 0.2s ease;
-  }
-  #volume-dock:hover {
-    background: rgba(14, 17, 23, 0.85);
   }
   .volume-label {
-    font-size: 9px;
+    font-size: 10px;
+    font-weight: bold;
     color: #a8e6cf;
     letter-spacing: 1px;
   }
   #volume-slider {
-    width: 60px;
+    width: 70px;
     height: 4px;
     cursor: pointer;
     accent-color: #a8e6cf;
@@ -72,22 +70,23 @@
   }
   #lore-box {
     width: 580px;
-    min-height: 40px;
-    margin-top: 8px;
-    padding: 8px;
+    min-height: 45px;
+    margin-top: 10px;
+    padding: 10px;
     background: #161a23;
-    border-left: 3px solid #558b2f;
-    font-size: 13px;
-    line-height: 1.3;
+    border-left: 4px solid #558b2f;
+    font-size: 14px;
+    line-height: 1.4;
   }
   #console-overlay {
     position: absolute;
-    top: 20px;
-    left: 20px;
+    top: 25px;
+    left: 23px;
     width: 560px;
     height: 240px;
     background: rgba(10, 13, 18, 0.95);
     border: 2px solid #ff1744;
+    box-shadow: 0 0 25px rgba(255, 23, 68, 0.4);
     display: none;
     flex-direction: column;
     padding: 10px;
@@ -97,16 +96,16 @@
   #console-log {
     flex-grow: 1;
     overflow-y: auto;
-    font-size: 11px;
+    font-size: 12px;
     color: #a8e6cf;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
     white-space: pre-wrap;
   }
   #console-input-line {
     display: flex;
     align-items: center;
     border-top: 1px solid #333;
-    padding-top: 4px;
+    padding-top: 6px;
   }
   #console-prompt {
     color: #ff1744;
@@ -119,7 +118,7 @@
     border: none;
     color: #ffffff;
     font-family: 'Courier New', Courier, monospace;
-    font-size: 12px;
+    font-size: 13px;
     outline: none;
   }
 </style>
@@ -128,22 +127,22 @@
 
 <div id="hud">
   <span id="score-text">FRUITS GATHERED: 0 / 20</span>
-  <span id="sigils">[---] [---] [---]</span>
+  <span id="sigils" title="Unlocked Endings">[---] [---] [---]</span>
   <span id="realm-text" style="color: #a8e6cf;">REALM: EDEN'S GROVE</span>
 </div>
 
 <div id="game-wrapper">
   <canvas id="gameCanvas" width="600" height="400" tabindex="0"></canvas>
   
-  <!-- Transparent Bottom-Right Volume Control -->
-  <div id="volume-dock" title="Volume">
+  <!-- Transparent Bottom-Right Volume Widget -->
+  <div id="volume-dock" title="Master Volume">
     <span class="volume-label">VOL</span>
-    <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.5">
+    <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.7">
   </div>
 
   <div id="console-overlay">
-    <div id="console-log">SYS_CONSOLE v2.2 [EDEN_ABYSS KERNEL]
-Type 'help' for commands. Press [F1] to close.
+    <div id="console-log">SYS_CONSOLE v2.3 [EDEN_ABYSS KERNEL]
+Type 'help' for available administrative commands. Press [F1] to close.
 --------------------------------------------------</div>
     <div id="console-input-line">
       <span id="console-prompt">&gt;</span>
@@ -172,6 +171,7 @@ const consoleInput = document.getElementById("console-input");
 let consoleOpen = false;
 let godMode = false;
 
+// ==================== BOOSTED AUDIO & REALM ENGINE ====================
 let audioCtx = null;
 let masterGain = null;
 let abyssOsc1 = null;
@@ -186,9 +186,11 @@ function initAudioEngine() {
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     masterGain = audioCtx.createGain();
-    masterGain.gain.setValueAtTime(parseFloat(volumeSlider.value), audioCtx.currentTime);
+    // Multiplied base volume scaling for much higher loudness output
+    masterGain.gain.setValueAtTime(parseFloat(volumeSlider.value) * 1.5, audioCtx.currentTime);
     masterGain.connect(audioCtx.destination);
 
+    // 1. EDEN BROOK & BREEZE
     const bufferSize = audioCtx.sampleRate * 3;
     const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const output = noiseBuffer.getChannelData(0);
@@ -197,7 +199,7 @@ function initAudioEngine() {
       const white = Math.random() * 2 - 1;
       output[i] = (lastOut + (0.02 * white)) / 1.02;
       lastOut = output[i];
-      output[i] *= 1.8;
+      output[i] *= 2.2;
     }
 
     const whiteNoise = audioCtx.createBufferSource();
@@ -206,17 +208,18 @@ function initAudioEngine() {
 
     const brookFilter = audioCtx.createBiquadFilter();
     brookFilter.type = "bandpass";
-    brookFilter.frequency.setValueAtTime(420, audioCtx.currentTime);
-    brookFilter.Q.setValueAtTime(0.7, audioCtx.currentTime);
+    brookFilter.frequency.setValueAtTime(450, audioCtx.currentTime);
+    brookFilter.Q.setValueAtTime(0.8, audioCtx.currentTime);
 
     brookGain = audioCtx.createGain();
-    brookGain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    brookGain.gain.setValueAtTime(0.16, audioCtx.currentTime);
 
     whiteNoise.connect(brookFilter);
     brookFilter.connect(brookGain);
     brookGain.connect(masterGain);
     whiteNoise.start(0);
 
+    // 2. ABYSS & PIT DRONES
     abyssDroneGain = audioCtx.createGain();
     abyssDroneGain.gain.setValueAtTime(0.0, audioCtx.currentTime);
     abyssDroneGain.connect(masterGain);
@@ -225,7 +228,7 @@ function initAudioEngine() {
     abyssOsc1.type = "triangle";
     abyssOsc1.frequency.setValueAtTime(65.41, audioCtx.currentTime);
     const g1 = audioCtx.createGain();
-    g1.gain.setValueAtTime(0.14, audioCtx.currentTime);
+    g1.gain.setValueAtTime(0.25, audioCtx.currentTime);
     abyssOsc1.connect(g1);
     g1.connect(abyssDroneGain);
     abyssOsc1.start();
@@ -234,12 +237,12 @@ function initAudioEngine() {
     abyssOsc2.type = "sawtooth";
     abyssOsc2.frequency.setValueAtTime(73.42, audioCtx.currentTime);
     const g2 = audioCtx.createGain();
-    g2.gain.setValueAtTime(0.07, audioCtx.currentTime);
+    g2.gain.setValueAtTime(0.12, audioCtx.currentTime);
     abyssOsc2.connect(g2);
     g2.connect(abyssDroneGain);
     abyssOsc2.start();
 
-    nextBirdTime = performance.now() + 1200;
+    nextBirdTime = performance.now() + 1000;
   } catch (e) {}
 }
 
@@ -251,7 +254,7 @@ function unlockAudio() {
 volumeSlider.addEventListener("input", (e) => {
   unlockAudio();
   if (masterGain && audioCtx) {
-    masterGain.gain.setValueAtTime(parseFloat(e.target.value), audioCtx.currentTime);
+    masterGain.gain.setValueAtTime(parseFloat(e.target.value) * 1.5, audioCtx.currentTime);
   }
 });
 
@@ -259,22 +262,22 @@ function playBirdChirp() {
   if (!audioCtx || audioCtx.state !== "running" || isUpsideDown || gameOver) return;
   try {
     const now = audioCtx.currentTime;
-    const notesCount = Math.random() < 0.45 ? 2 : 1;
-    const baseFreq = 2200 + Math.random() * 1100;
+    const notesCount = Math.random() < 0.5 ? 2 : 1;
+    const baseFreq = 2400 + Math.random() * 1200;
 
     for (let n = 0; n < notesCount; n++) {
-      const start = now + n * 0.14;
-      const dur = 0.09 + Math.random() * 0.05;
+      const start = now + n * 0.12;
+      const dur = 0.08 + Math.random() * 0.06;
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
 
       osc.type = "sine";
       osc.frequency.setValueAtTime(baseFreq, start);
-      osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.28, start + dur * 0.6);
-      osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.92, start + dur);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.3, start + dur * 0.5);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.9, start + dur);
 
       gain.gain.setValueAtTime(0.001, start);
-      gain.gain.linearRampToValueAtTime(0.045, start + 0.02);
+      gain.gain.linearRampToValueAtTime(0.08, start + 0.015);
       gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
 
       osc.connect(gain);
@@ -289,23 +292,23 @@ function playFlickerSound() {
   try {
     unlockAudio();
     const now = audioCtx.currentTime;
-    const bufferSize = Math.floor(audioCtx.sampleRate * 0.14);
+    const bufferSize = Math.floor(audioCtx.sampleRate * 0.15);
     const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.4));
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.35));
     }
 
     const noise = audioCtx.createBufferSource();
     noise.buffer = buffer;
     const filter = audioCtx.createBiquadFilter();
     filter.type = "bandpass";
-    filter.frequency.setValueAtTime(1800, now);
+    filter.frequency.setValueAtTime(2000, now);
     filter.Q.setValueAtTime(1.5, now);
 
     const noiseGain = audioCtx.createGain();
-    noiseGain.gain.setValueAtTime(0.28, now);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+    noiseGain.gain.setValueAtTime(0.4, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
 
     noise.connect(filter);
     filter.connect(noiseGain);
@@ -315,16 +318,16 @@ function playFlickerSound() {
     const sub = audioCtx.createOscillator();
     const subGain = audioCtx.createGain();
     sub.type = "sawtooth";
-    sub.frequency.setValueAtTime(95, now);
-    sub.frequency.exponentialRampToValueAtTime(32, now + 0.15);
+    sub.frequency.setValueAtTime(100, now);
+    sub.frequency.exponentialRampToValueAtTime(30, now + 0.18);
 
-    subGain.gain.setValueAtTime(0.25, now);
-    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+    subGain.gain.setValueAtTime(0.35, now);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.19);
 
     sub.connect(subGain);
     subGain.connect(masterGain);
     sub.start(now);
-    sub.stop(now + 0.16);
+    sub.stop(now + 0.19);
   } catch (e) {}
 }
 
@@ -333,21 +336,21 @@ function updateAmbientSoundscape(proximity, isAbyss, isPit) {
   const now = audioCtx.currentTime;
 
   if (!isAbyss) {
-    brookGain.gain.setTargetAtTime(0.08, now, 0.4);
+    brookGain.gain.setTargetAtTime(0.16, now, 0.3);
     abyssDroneGain.gain.setTargetAtTime(0.0, now, 0.2);
     const perfNow = performance.now();
     if (perfNow >= nextBirdTime) {
       playBirdChirp();
-      nextBirdTime = perfNow + 2200 + Math.random() * 3800;
+      nextBirdTime = perfNow + 1800 + Math.random() * 3200;
     }
   } else if (!isPit) {
     brookGain.gain.setTargetAtTime(0.0, now, 0.2);
-    abyssDroneGain.gain.setTargetAtTime(1.0, now, 0.4);
-    abyssOsc1.frequency.setTargetAtTime(65.41 - (proximity * 15), now, 0.5);
-    abyssOsc2.frequency.setTargetAtTime(73.42 + (proximity * 25), now, 0.5);
+    abyssDroneGain.gain.setTargetAtTime(1.2, now, 0.3);
+    abyssOsc1.frequency.setTargetAtTime(65.41 - (proximity * 15), now, 0.4);
+    abyssOsc2.frequency.setTargetAtTime(73.42 + (proximity * 25), now, 0.4);
   } else {
     brookGain.gain.setTargetAtTime(0.0, now, 0.2);
-    abyssDroneGain.gain.setTargetAtTime(1.15, now, 0.3);
+    abyssDroneGain.gain.setTargetAtTime(1.4, now, 0.2);
     abyssOsc1.frequency.setTargetAtTime(55.00 + (proximity * 40), now, 0.2);
     abyssOsc2.frequency.setTargetAtTime(82.41 + (proximity * 50), now, 0.2);
   }
@@ -362,12 +365,12 @@ function playEdenCollectSound() {
       const gain = audioCtx.createGain();
       osc.type = "sine";
       osc.frequency.setValueAtTime(freq, now + i * 0.05);
-      gain.gain.setValueAtTime(0.12, now + i * 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+      gain.gain.setValueAtTime(0.2, now + i * 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
       osc.connect(gain);
       gain.connect(masterGain);
       osc.start(now + i * 0.05);
-      osc.stop(now + 0.25);
+      osc.stop(now + 0.3);
     });
   } catch (e) {}
 }
@@ -381,7 +384,7 @@ function playAbyssCollectSound() {
     osc.type = "triangle";
     osc.frequency.setValueAtTime(180, now);
     osc.frequency.exponentialRampToValueAtTime(60, now + 0.35);
-    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.setValueAtTime(0.35, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
     osc.connect(gain);
     gain.connect(masterGain);
@@ -400,12 +403,12 @@ function playPitCollectSound() {
     osc.frequency.setValueAtTime(320, now);
     osc.frequency.setValueAtTime(140, now + 0.08);
     osc.frequency.setValueAtTime(450, now + 0.16);
-    gain.gain.setValueAtTime(0.2, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
     osc.connect(gain);
     gain.connect(masterGain);
     osc.start(now);
-    osc.stop(now + 0.3);
+    osc.stop(now + 0.35);
   } catch (e) {}
 }
 
@@ -418,7 +421,7 @@ function playDeathSound() {
     osc.type = "sawtooth";
     osc.frequency.setValueAtTime(150, now);
     osc.frequency.linearRampToValueAtTime(40, now + 0.5);
-    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.setValueAtTime(0.4, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
     osc.connect(gain);
     gain.connect(masterGain);
@@ -436,7 +439,7 @@ function playTrueEndingSound() {
       const gain = audioCtx.createGain();
       osc.type = "sine";
       osc.frequency.setValueAtTime(freq, now + i * 0.1);
-      gain.gain.setValueAtTime(0.12, now + i * 0.1);
+      gain.gain.setValueAtTime(0.2, now + i * 0.1);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.5);
       osc.connect(gain);
       gain.connect(masterGain);
@@ -464,8 +467,8 @@ function playHeartbeat(intensity = 1.0) {
   try {
     unlockAudio();
     const now = audioCtx.currentTime;
-    triggerThump(now, 85 * intensity, 0.75);
-    triggerThump(now + 0.14, 65 * intensity, 0.55);
+    triggerThump(now, 85 * intensity, 0.9);
+    triggerThump(now + 0.14, 65 * intensity, 0.7);
   } catch (e) {}
 }
 
@@ -637,7 +640,7 @@ function processCommand(cmd) {
     player.y = 40 + Math.random() * 300;
     toggleConsole();
   } else if (baseCmd === "clear") {
-    consoleLog.innerText = "SYS_CONSOLE v2.2";
+    consoleLog.innerText = "SYS_CONSOLE v2.3";
   }
   consoleInput.value = "";
 }
@@ -720,7 +723,7 @@ function triggerUpsideDown(trueMode = false) {
   scoreText.style.color = "#ff2a2a";
   
   loreBox.style.background = "#1a0505";
-  loreBox.style.borderLeft = "3px solid #ff0000";
+  loreBox.style.borderLeft = "4px solid #ff0000";
   loreBox.style.color = "#ff9999";
   setLore(trueMode ? "YOU CONSUMED THE CORE OF KNOWLEDGE." : "YOU TOUCHED THE FORBIDDEN ROOT.");
   spawnItem();
@@ -764,7 +767,7 @@ function resetGame() {
   watcher.baseSpeed = 330;
   
   canvas.style.borderColor = "#333";
-  canvas.style.boxShadow = "none";
+  canvas.style.boxShadow = "0 0 20px rgba(0,0,0,0.8)";
   checkForbiddenFruitSpawn();
   
   realmText.innerText = "REALM: EDEN'S GROVE";
@@ -773,7 +776,7 @@ function resetGame() {
   scoreText.style.color = "#ffffff";
   
   loreBox.style.background = "#161a23";
-  loreBox.style.borderLeft = "3px solid #558b2f";
+  loreBox.style.borderLeft = "4px solid #558b2f";
   loreBox.style.color = "#e0e0e0";
   if (!forbiddenFruit.active) setLore('"The Lord is my shepherd; I shall not want..."');
   updateSigilHUD();
@@ -798,7 +801,10 @@ function drawTree(x, y, style = "round") {
 
 function updateSanityBorder() {
   if (!isUpsideDown || gameOver) {
-    if (!gameOver) { canvas.style.borderColor = "#333"; canvas.style.boxShadow = "none"; }
+    if (!gameOver) {
+      canvas.style.borderColor = "#333";
+      canvas.style.boxShadow = "0 0 20px rgba(0,0,0,0.8)";
+    }
     return;
   }
   const dist = Math.hypot(player.x - watcher.x, player.y - watcher.y);
@@ -809,7 +815,8 @@ function updateSanityBorder() {
     playHeartbeat(1.1);
     lastHeartbeatTime = performance.now();
   }
-  canvas.style.borderColor = `rgba(200, 20, 20, ${0.4 + proximity * 0.6})`;
+  canvas.style.borderColor = `rgba(200, 20, 20, ${0.5 + proximity * 0.5})`;
+  canvas.style.boxShadow = `0 0 ${Math.round(20 + proximity * 30)}px rgba(200, 0, 0, 0.7)`;
 }
 
 function update(dt) {
@@ -978,7 +985,7 @@ function drawWatcher(wx, wy, wsize, fleeing = false) {
 
 function draw() {
   ctx.save();
-  if (shakeTime > 0) ctx.translate((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
+  if (shakeTime > 0) ctx.translate((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14);
 
   if (!isUpsideDown) {
     const isFlickering = flickerFrames > 0;
@@ -988,14 +995,14 @@ function draw() {
     ctx.fillStyle = isFlickering ? "#ff0000" : "#fff59d";
     for (let i = 0; i < 10; i++) ctx.fillRect((i * 59) % 580, (i * 83) % 380, 4, 4);
 
-    // Eden Pickup Item
+    // Standard Eden Fruit
     ctx.fillStyle = "#ffd700";
     ctx.beginPath(); ctx.arc(item.x + 7, item.y + 7, 7, 0, Math.PI * 2); ctx.fill();
 
     // Restored Pulsing Crimson Forbidden Fruit
     if (forbiddenFruit.active) {
-      const glow = 6 + Math.sin(glitchTimer * 0.12) * 3;
-      ctx.fillStyle = "rgba(255, 23, 68, 0.4)";
+      const glow = 6 + Math.sin(glitchTimer * 0.15) * 3;
+      ctx.fillStyle = "rgba(255, 23, 68, 0.45)";
       ctx.beginPath();
       ctx.arc(forbiddenFruit.x + 7, forbiddenFruit.y + 7, glow + 6, 0, Math.PI * 2);
       ctx.fill();
@@ -1016,14 +1023,14 @@ function draw() {
     ctx.fillStyle = isTrueAbyss ? "#050000" : "#090202";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
+    ctx.fillStyle = "rgba(255, 0, 0, 0.22)";
     for (let g of subliminalGlyphs) ctx.fillText(g.text, g.x, g.y);
 
-    // Restored Organic Floating Eye Pickup for Abyss & Pit
+    // Restored Organic Floating Eye Pickup for Abyss/Pit
     if (!isWatcherFleeing) {
       const ex = item.x + 7;
       const ey = item.y + 7;
-      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
       ctx.beginPath();
       ctx.ellipse(ex, ey, 10, 6, 0, 0, Math.PI * 2);
       ctx.fill();
