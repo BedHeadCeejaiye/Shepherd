@@ -113,6 +113,7 @@ let glitchTimer = 0;
 let flickerFrames = 0;
 let watcherStunTimer = 0;
 let flickerCooldown = 0;
+let hasFlickeredBefore = false; // Tracks if the first startling blip has occurred
 
 const player = {
   x: 50,
@@ -276,6 +277,7 @@ function resetGame() {
   flickerFrames = 0;
   watcherStunTimer = 0;
   flickerCooldown = 0;
+  hasFlickeredBefore = false;
   player.x = 50;
   player.y = 200;
   watcher.baseSpeed = 1.1;
@@ -348,11 +350,16 @@ function update() {
   if (flickerCooldown > 0) flickerCooldown--;
   if (gameOver) return;
 
-  // Rare, intense subliminal flicker after 8+ fruits (8 frames duration, ~6 second cooldown)
+  // Unpredictable subliminal flicker after 8+ fruits (First one is always a quick blip, subsequent ones are random)
   if (!isUpsideDown && score >= 8 && flickerFrames === 0 && flickerCooldown === 0) {
-    if (Math.random() < 0.0008) {
-      flickerFrames = 8;
-      flickerCooldown = 360;
+    if (Math.random() < 0.0006) {
+      if (!hasFlickeredBefore) {
+        flickerFrames = 2; // Guaranteed fast, intense first blip
+        hasFlickeredBefore = true;
+      } else {
+        flickerFrames = Math.floor(Math.random() * 12) + 1; // Random duration thereafter
+      }
+      flickerCooldown = Math.floor(Math.random() * 360) + 240; // Randomized cooldown (~4s to 10s)
     }
   }
 
@@ -532,7 +539,6 @@ function draw() {
   if (!isUpsideDown) {
     const isFlickering = flickerFrames > 0;
 
-    // Deep, bruised crimson-black flash during flicker
     ctx.fillStyle = isFlickering ? "#1c0303" : "#558b2f";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -542,7 +548,6 @@ function draw() {
     }
 
     if (isFlickering) {
-      // Draw glaring red eye / corrupted apple
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
       ctx.ellipse(item.x + 7, item.y + 7, 12, 7, 0, 0, Math.PI * 2);
@@ -552,7 +557,6 @@ function draw() {
       ctx.arc(item.x + 7, item.y + 7, 4, 0, Math.PI * 2);
       ctx.fill();
       
-      // Sudden physical mini-shake impact during the flicker frame
       ctx.translate((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
     } else {
       ctx.fillStyle = "#ffd700";
@@ -681,23 +685,4 @@ function draw() {
       ctx.font = "bold 26px Courier New";
       ctx.fillText("CAST INTO OUTER DARKNESS", canvas.width / 2, 160);
       ctx.fillStyle = "#aaaaaa";
-      ctx.font = "14px Courier New";
-      ctx.fillText("Curiosity opened the pit. The Watcher claimed you.", canvas.width / 2, 195);
-      ctx.fillText("Press [R] to try again.", canvas.width / 2, 240);
-    }
-  }
-
-  ctx.restore();
-}
-
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
-
-updateSigilHUD();
-loop();
-</script>
-</body>
-</html>
+      ctx
