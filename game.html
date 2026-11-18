@@ -1369,7 +1369,9 @@ function draw() {
     if (!isWatcherFleeing) {
       const ex = item.x + 7;
       const ey = item.y + 7;
-      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+
+      // Original solid rendering for the Abyss eye pickup
+      ctx.fillStyle = "#ffffff";
       ctx.beginPath();
       ctx.ellipse(ex, ey, 10, 6, 0, 0, Math.PI * 2);
       ctx.fill();
