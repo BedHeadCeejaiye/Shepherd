@@ -199,6 +199,7 @@ let abyssOsc1 = null;
 let abyssOsc2 = null;
 let abyssDroneGain = null;
 
+let brookGain = null;
 let nextBirdTime = 0;
 let lastHeartbeatTime = 0;
 
@@ -210,7 +211,36 @@ function initAudioEngine() {
     masterGain.gain.setValueAtTime(parseFloat(volumeSlider.value), audioCtx.currentTime);
     masterGain.connect(audioCtx.destination);
 
-    // ABYSS & PIT HORROR DRONES (Louder/heavier presence)
+    // 1. EDEN GENTLE BROOK / BREEZE NOISE BUFFER
+    const bufferSize = audioCtx.sampleRate * 3;
+    const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    let lastOut = 0.0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      output[i] = (lastOut + (0.02 * white)) / 1.02;
+      lastOut = output[i];
+      output[i] *= 1.8;
+    }
+
+    const whiteNoise = audioCtx.createBufferSource();
+    whiteNoise.buffer = noiseBuffer;
+    whiteNoise.loop = true;
+
+    const brookFilter = audioCtx.createBiquadFilter();
+    brookFilter.type = "bandpass";
+    brookFilter.frequency.setValueAtTime(420, audioCtx.currentTime);
+    brookFilter.Q.setValueAtTime(0.7, audioCtx.currentTime);
+
+    brookGain = audioCtx.createGain();
+    brookGain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+
+    whiteNoise.connect(brookFilter);
+    brookFilter.connect(brookGain);
+    brookGain.connect(masterGain);
+    whiteNoise.start(0);
+
+    // 2. ABYSS & PIT HORROR DRONES
     abyssDroneGain = audioCtx.createGain();
     abyssDroneGain.gain.setValueAtTime(0.0, audioCtx.currentTime);
     abyssDroneGain.connect(masterGain);
@@ -219,7 +249,7 @@ function initAudioEngine() {
     abyssOsc1.type = "triangle";
     abyssOsc1.frequency.setValueAtTime(65.41, audioCtx.currentTime);
     const g1 = audioCtx.createGain();
-    g1.gain.setValueAtTime(0.22, audioCtx.currentTime);
+    g1.gain.setValueAtTime(0.14, audioCtx.currentTime);
     abyssOsc1.connect(g1);
     g1.connect(abyssDroneGain);
     abyssOsc1.start();
@@ -228,12 +258,12 @@ function initAudioEngine() {
     abyssOsc2.type = "sawtooth";
     abyssOsc2.frequency.setValueAtTime(73.42, audioCtx.currentTime);
     const g2 = audioCtx.createGain();
-    g2.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    g2.gain.setValueAtTime(0.07, audioCtx.currentTime);
     abyssOsc2.connect(g2);
     g2.connect(abyssDroneGain);
     abyssOsc2.start();
 
-    nextBirdTime = performance.now() + 3000;
+    nextBirdTime = performance.now() + 1200;
   } catch (e) {}
 }
 
@@ -253,30 +283,35 @@ volumeSlider.addEventListener("input", (e) => {
   }
 });
 
-function playQuietMorningChirp() {
+function playBirdChirp() {
   if (!audioCtx || audioCtx.state !== "running" || isUpsideDown || gameOver) return;
   try {
     const now = audioCtx.currentTime;
-    const baseFreq = 2000 + Math.random() * 1000;
-    const dur = 0.08 + Math.random() * 0.05;
+    const notesCount = Math.random() < 0.45 ? 2 : 1;
+    const baseFreq = 2200 + Math.random() * 1100;
 
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    for (let n = 0; n < notesCount; n++) {
+      const start = now + n * 0.14;
+      const dur = 0.09 + Math.random() * 0.05;
 
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(baseFreq, now);
-    osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.2, now + dur * 0.5);
-    osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.9, now + dur);
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
 
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(0.02, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(baseFreq, start);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.28, start + dur * 0.6);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.92, start + dur);
 
-    osc.connect(gain);
-    gain.connect(masterGain);
+      gain.gain.setValueAtTime(0.001, start);
+      gain.gain.linearRampToValueAtTime(0.045, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
 
-    osc.start(now);
-    osc.stop(now + dur + 0.01);
+      osc.connect(gain);
+      gain.connect(masterGain);
+
+      osc.start(start);
+      osc.stop(start + dur + 0.01);
+    }
   } catch (e) {}
 }
 
@@ -330,22 +365,25 @@ function updateAmbientSoundscape(proximity, isAbyss, isPit) {
   const now = audioCtx.currentTime;
 
   if (!isAbyss) {
+    brookGain.gain.setTargetAtTime(0.08, now, 0.4);
     abyssDroneGain.gain.setTargetAtTime(0.0, now, 0.2);
 
     const perfNow = performance.now();
     if (perfNow >= nextBirdTime) {
-      playQuietMorningChirp();
-      nextBirdTime = perfNow + 4000 + Math.random() * 4000;
+      playBirdChirp();
+      nextBirdTime = perfNow + 2200 + Math.random() * 3800;
     }
   } else if (!isPit) {
-    abyssDroneGain.gain.setTargetAtTime(1.2, now, 0.4);
+    brookGain.gain.setTargetAtTime(0.0, now, 0.2);
+    abyssDroneGain.gain.setTargetAtTime(1.0, now, 0.4);
 
     abyssOsc1.type = "triangle";
     abyssOsc1.frequency.setTargetAtTime(65.41 - (proximity * 15), now, 0.5);
     abyssOsc2.type = "sawtooth";
     abyssOsc2.frequency.setTargetAtTime(73.42 + (proximity * 25), now, 0.5);
   } else {
-    abyssDroneGain.gain.setTargetAtTime(1.5, now, 0.3);
+    brookGain.gain.setTargetAtTime(0.0, now, 0.2);
+    abyssDroneGain.gain.setTargetAtTime(1.15, now, 0.3);
 
     abyssOsc1.type = "sawtooth";
     abyssOsc1.frequency.setTargetAtTime(55.00 + (proximity * 40), now, 0.2);
@@ -1042,7 +1080,8 @@ function update(dt) {
     player.y = nextY;
   }
 
-  if (Math.abs(player.x - lastPlayerX) > 0.1 || Math.abs(player.y - lastPlayerY) > 0.1) {
+  const moved = (Math.abs(player.x - lastPlayerX) > 0.1 || Math.abs(player.y - lastPlayerY) > 0.1);
+  if (moved) {
     playerStillTimer = performance.now();
     lastPlayerX = player.x;
     lastPlayerY = player.y;
@@ -1052,21 +1091,26 @@ function update(dt) {
       loreBox.style.fontStyle = "normal";
       loreBox.innerText = savedLoreText;
     }
-  } else if (!isWhispering && performance.now() - playerStillTimer > 10000) {
-    isWhispering = true;
-    loreBox.style.color = "#ff5252";
-    loreBox.style.fontStyle = "italic";
-    loreBox.innerText = (isUpsideDown ? abyssWhispers : edenWhispers)[Math.floor(Math.random() * 5)];
+  } else {
+    if (!isWhispering && (performance.now() - playerStillTimer > 10000)) {
+      isWhispering = true;
+      const pool = isUpsideDown ? abyssWhispers : edenWhispers;
+      loreBox.style.color = "#ff5252";
+      loreBox.style.fontStyle = "italic";
+      loreBox.innerText = pool[Math.floor(Math.random() * pool.length)];
+    }
   }
 
   if (!isUpsideDown && touchedAnomalyThisFrame) {
     handleAnomalyTouch();
   }
 
-  if (!isUpsideDown && forbiddenFruit.active && checkCollision(player.x, player.y, player.size, player.size, forbiddenFruit.x, forbiddenFruit.y, forbiddenFruit.size, forbiddenFruit.size)) {
-    forbiddenFruit.active = false;
-    triggerUpsideDown(true);
-    return;
+  if (!isUpsideDown && forbiddenFruit.active) {
+    if (checkCollision(player.x, player.y, player.size, player.size, forbiddenFruit.x, forbiddenFruit.y, forbiddenFruit.size, forbiddenFruit.size)) {
+      forbiddenFruit.active = false;
+      triggerUpsideDown(true);
+      return;
+    }
   }
 
   if (!isWatcherFleeing && checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
@@ -1074,11 +1118,17 @@ function update(dt) {
       playEdenCollectSound();
       score++;
       scoreText.innerText = `FRUITS GATHERED: ${score} / 20`;
+      if (score === 5) {
+        setLore("Deep in the woods, the shadows grow long. Something feels different near the eastern edge.");
+      } else if (score === 12) {
+        setLore("You remain faithful to the harvest, ignoring the strange pull from the east.");
+      }
+      
       if (score >= 20) {
         gameOver = true;
         edenWon = true;
         saveEnding("eden");
-        setLore("MATTHEW 25:21 — 'Well done, good and faithful servant. Enter into the joy of your lord.'");
+        setLore("MATTHEW 25:21 — 'Well done, good and faithful servant. Enter into the joy of your master.'");
       } else {
         spawnItem();
       }
@@ -1088,28 +1138,34 @@ function update(dt) {
       } else {
         playAbyssCollectSound();
       }
+
       eyesCollected++;
       scoreText.innerText = `SEALS BROKEN: ${eyesCollected} / ${targetSeals}`;
       setLore(abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)]);
+      
       watcher.baseSpeed += isTrueAbyss ? 18 : 20;
-      watcherStunTimer = 36;
+      watcherStunTimer = 36; 
       shakeTime = 20;
       phantomItem.active = false;
-
+      
       if (eyesCollected >= targetSeals) {
-        if (isTrueAbyss && !isWatcherFleeing) {
-          isWatcherFleeing = true;
-          fleeGraceTimer = 0.6;
-          watcherStunTimer = 0;
-          watcher.baseSpeed = 240;
-          scoreText.innerText = "CONSUME THE WATCHER";
-          setLore("HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
-        } else if (!isTrueAbyss) {
+        if (isTrueAbyss) {
+          if (!isWatcherFleeing) {
+            isWatcherFleeing = true;
+            fleeGraceTimer = 0.6; 
+            watcherStunTimer = 0; 
+            watcher.baseSpeed = 240; 
+            watcherJukeTimer = 0;
+            scoreText.innerText = "CONSUME THE WATCHER";
+            scoreText.style.color = "#ffffff";
+            setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
+            shakeTime = 40;
+          }
+        } else {
           gameOver = true;
           won = true;
           saveEnding("revelation");
           shakeTime = 9999;
-          setLore("REVELATION 20:14 — 'And Death and Hell were cast into the lake of fire.'");
         }
       } else {
         spawnItem();
@@ -1118,8 +1174,21 @@ function update(dt) {
   }
 
   if (isUpsideDown) {
-    if (!isWatcherFleeing && !phantomItem.active && eyesCollected >= 1 && Math.random() < 0.12 * dt) {
-      spawnPhantomItem();
+    if (!isWatcherFleeing) {
+      if (!phantomItem.active && eyesCollected >= 1 && Math.random() < 0.12 * dt) {
+        spawnPhantomItem();
+      }
+      if (phantomItem.active) {
+        phantomItem.timer -= dt * 60;
+        const distToPhantom = Math.hypot((player.x + 10) - (phantomItem.x + 7), (player.y + 10) - (phantomItem.y + 7));
+        if (distToPhantom < 42 || phantomItem.timer <= 0) {
+          phantomItem.active = false;
+          if (distToPhantom < 42) {
+            shakeTime = 10;
+            setLore("A MIRAGE OF THE PIT. YOUR EYES DECEIVE YOU.");
+          }
+        }
+      }
     }
 
     const dx = player.x - watcher.x;
@@ -1127,24 +1196,49 @@ function update(dt) {
     const dist = Math.hypot(dx, dy);
 
     if (dist > 0) {
-      let speed = watcher.baseSpeed;
+      let dynamicSpeed = watcher.baseSpeed;
+
       if (isWatcherFleeing) {
         watcherJukeTimer -= dt;
         if (watcherJukeTimer <= 0) {
-          watcherJukeTimer = 0.4 + Math.random() * 0.4;
-          watcherJukeOffset = (Math.random() < 0.5 ? 1 : -1) * 2;
+          watcherJukeTimer = 0.35 + Math.random() * 0.55;
+          watcherJukeOffset = (Math.random() < 0.5 ? 1 : -1) * (1.2 + Math.random() * 1.8);
         }
-        let fx = -(dx / dist) - (dy / dist) * watcherJukeOffset;
-        let fy = -(dy / dist) + (dx / dist) * watcherJukeOffset;
-        watcher.x += fx * speed * dt;
-        watcher.y += fy * speed * dt;
+
+        let fleeX = -(dx / dist);
+        let fleeY = -(dy / dist);
+
+        let perpX = -fleeY * watcherJukeOffset;
+        let perpY = fleeX * watcherJukeOffset;
+        fleeX += perpX * 0.85;
+        fleeY += perpY * 0.85;
+
+        if (dist < 160) {
+          dynamicSpeed = 480; 
+        } else {
+          dynamicSpeed = 270;
+        }
+
+        if (watcher.x < 70) fleeX += 1.4;
+        if (watcher.x > canvas.width - 90) fleeX -= 1.4;
+        if (watcher.y < 70) fleeY += 1.4;
+        if (watcher.y > canvas.height - 90) fleeY -= 1.4;
+
+        const fleeNorm = Math.hypot(fleeX, fleeY) || 1;
+        watcher.x += (fleeX / fleeNorm) * dynamicSpeed * dt;
+        watcher.y += (fleeY / fleeNorm) * dynamicSpeed * dt;
+
+        watcher.x = Math.max(15, Math.min(canvas.width - 40, watcher.x));
+        watcher.y = Math.max(15, Math.min(canvas.height - 40, watcher.y));
 
         watcherTrail.push({ x: watcher.x, y: watcher.y, life: 12 });
         if (watcherTrail.length > 8) watcherTrail.shift();
       } else {
-        if (watcherStunTimer > 0) speed *= 0.25;
-        watcher.x += (dx / dist) * speed * dt;
-        watcher.y += (dy / dist) * speed * dt;
+        if (watcherStunTimer > 0) {
+          dynamicSpeed *= 0.25;
+        }
+        watcher.x += (dx / dist) * dynamicSpeed * dt;
+        watcher.y += (dy / dist) * dynamicSpeed * dt;
       }
     }
 
@@ -1152,22 +1246,27 @@ function update(dt) {
       t.life--;
     }
 
-    if (isWatcherFleeing && fleeGraceTimer <= 0 && checkCollision(player.x, player.y, player.size, player.size, watcher.x, watcher.y, watcher.size, watcher.size)) {
+    if (isWatcherFleeing && fleeGraceTimer <= 0 && checkCollision(
+      player.x, player.y, player.size, player.size,
+      watcher.x, watcher.y, watcher.size, watcher.size
+    )) {
       playTrueEndingSound();
       gameOver = true;
       trueWon = true;
       saveEnding("trueEnd");
       shakeTime = 9999;
-      setLore("REVELATION 21:5 — 'Behold, I make all things new.'");
     }
 
-    if (!isWatcherFleeing && !godMode && checkCollision(player.x, player.y, player.size, player.size, watcher.x + 4, watcher.y + 4, watcher.size - 8, watcher.size - 8)) {
+    const pad = 4;
+    if (!isWatcherFleeing && !godMode && checkCollision(
+      player.x, player.y, player.size, player.size,
+      watcher.x + pad, watcher.y + pad, watcher.size - pad * 2, watcher.size - pad * 2
+    )) {
       playDeathSound();
       gameOver = true;
       won = false;
       saveEnding("death");
       shakeTime = 9999;
-      setLore("JOB 10:22 — 'A land of darkness, as darkness itself... and where the light is as darkness.'");
     }
   }
 
@@ -1178,20 +1277,23 @@ function update(dt) {
 function drawWatcher(wx, wy, wsize, fleeing = false) {
   if (fleeing) {
     for (let t of watcherTrail) {
+      ctx.save();
+      ctx.translate(t.x + wsize / 2, t.y + wsize / 2);
       ctx.strokeStyle = `rgba(255, 23, 68, ${t.life / 15})`;
       ctx.lineWidth = 1.5;
-      ctx.strokeRect(t.x, t.y, wsize, wsize);
+      ctx.strokeRect(-16, -16, 32, 32);
+      ctx.restore();
     }
   }
 
   ctx.save();
   ctx.translate(wx + wsize / 2, wy + wsize / 2);
-  ctx.rotate(glitchTimer * 0.05);
-
+  const rotSpeed = watcherStunTimer > 0 ? 0.015 : (fleeing ? 0.25 : 0.05);
+  ctx.rotate(glitchTimer * rotSpeed);
+  
   ctx.strokeStyle = fleeing ? "#ffffff" : (watcherStunTimer > 0 ? "#ff8a80" : "#ff1744");
   ctx.lineWidth = 2;
   ctx.strokeRect(-18, -18, 36, 36);
-
   ctx.rotate(Math.PI / 4);
   ctx.strokeRect(-18, -18, 36, 36);
 
@@ -1199,18 +1301,25 @@ function drawWatcher(wx, wy, wsize, fleeing = false) {
   ctx.beginPath();
   ctx.arc(0, 0, 7, 0, Math.PI * 2);
   ctx.fill();
-
+  ctx.fillStyle = "#000000";
+  ctx.beginPath();
+  ctx.arc(0, 0, 3, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 }
 
 function draw() {
   ctx.save();
+
   if (shakeTime > 0) {
-    ctx.translate((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14);
+    const dx = (Math.random() - 0.5) * 14;
+    const dy = (Math.random() - 0.5) * 14;
+    ctx.translate(dx, dy);
   }
 
   if (!isUpsideDown) {
     const isFlickering = flickerFrames > 0;
+
     ctx.fillStyle = isFlickering ? "#1c0303" : "#558b2f";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -1219,16 +1328,29 @@ function draw() {
       ctx.fillRect((i * 59) % 580, (i * 83) % 380, 4, 4);
     }
 
-    ctx.fillStyle = "#ffd700";
-    ctx.beginPath();
-    ctx.arc(item.x + 7, item.y + 7, 7, 0, Math.PI * 2);
-    ctx.fill();
+    if (isFlickering) {
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.ellipse(item.x + 7, item.y + 7, 12, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ff0000";
+      ctx.beginPath();
+      ctx.arc(item.x + 7, item.y + 7, 4, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.translate((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
+    } else {
+      ctx.fillStyle = "#ffd700";
+      ctx.beginPath();
+      ctx.arc(item.x + 7, item.y + 7, 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     if (forbiddenFruit.active) {
-      const glow = 6 + Math.sin(glitchTimer * 0.15) * 3;
-      ctx.fillStyle = "rgba(255, 23, 68, 0.45)";
+      const glow = 5 + Math.sin(glitchTimer * 0.1) * 2;
+      ctx.fillStyle = "rgba(255, 23, 68, 0.35)";
       ctx.beginPath();
-      ctx.arc(forbiddenFruit.x + 7, forbiddenFruit.y + 7, glow + 6, 0, Math.PI * 2);
+      ctx.arc(forbiddenFruit.x + 7, forbiddenFruit.y + 7, glow + 5, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.fillStyle = "#ff1744";
@@ -1241,69 +1363,150 @@ function draw() {
       drawWatcher(anomaly.x - 15, anomaly.y - 10, 28);
     }
 
-    ctx.fillStyle = godMode ? "#ffd700" : "#ffffff";
+    ctx.fillStyle = godMode ? "#ffd700" : (isFlickering ? "#b0bec5" : "#ffffff");
     ctx.fillRect(player.x, player.y, player.size, player.size);
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
 
     for (const tree of forestTrees) {
       drawTree(tree.x, tree.y, tree.style);
     }
+
     drawTree(anomaly.x, anomaly.y, anomaly.style);
+
   } else {
     ctx.fillStyle = isTrueAbyss ? "#050000" : "#090202";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = "rgba(255, 0, 0, 0.22)";
+    ctx.strokeStyle = isTrueAbyss ? "#4a0000" : "#2a0808";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 8; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * 85, 0);
+      ctx.lineTo(i * 85 + 15, 60);
+      ctx.stroke();
+    }
+
     ctx.font = "10px Courier New";
+    ctx.fillStyle = "rgba(255, 0, 0, 0.22)";
     for (let g of subliminalGlyphs) {
       ctx.fillText(g.text, g.x, g.y);
     }
 
-    if (!isWatcherFleeing) {
-      const ex = item.x + 7;
-      const ey = item.y + 7;
-      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-      ctx.beginPath();
-      ctx.ellipse(ex, ey, 10, 6, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = "#ff1744";
-      ctx.beginPath();
-      ctx.arc(ex, ey, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = "#000000";
-      ctx.beginPath();
-      ctx.arc(ex, ey, 1.5, 0, Math.PI * 2);
-      ctx.fill();
+    if (Math.floor(glitchTimer) % 10 < 2) {
+      ctx.fillStyle = "rgba(255, 0, 0, 0.08)";
+      ctx.fillRect(0, Math.random() * canvas.height, canvas.width, 4);
     }
 
-    ctx.fillStyle = isWatcherFleeing ? "#ff1744" : "#b0bec5";
+    if (watcherStunTimer > 28) {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    if (!isWatcherFleeing) {
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.ellipse(item.x + 7, item.y + 7, 10, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ff0000";
+      ctx.beginPath();
+      ctx.arc(item.x + 7, item.y + 7, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (phantomItem.active && Math.floor(glitchTimer) % 6 < 4) {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+        ctx.beginPath();
+        ctx.ellipse(phantomItem.x + 7, phantomItem.y + 7, 10, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255, 0, 0, 0.55)";
+        ctx.beginPath();
+        ctx.arc(phantomItem.x + 7, phantomItem.y + 7, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    ctx.fillStyle = isWatcherFleeing ? "#ff1744" : (godMode ? "#ffd700" : "#b0bec5");
     ctx.fillRect(player.x, player.y, player.size, player.size);
 
     drawWatcher(watcher.x, watcher.y, watcher.size, isWatcherFleeing);
+
+    const visionRadius = isWatcherFleeing ? 260 : (isTrueAbyss ? 175 : 210);
+    const gradient = ctx.createRadialGradient(
+      player.x + 10, player.y + 10, 35,
+      player.x + 10, player.y + 10, visionRadius
+    );
+    gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+    gradient.addColorStop(1, "rgba(0, 0, 0, 0.95)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
   if (gameOver) {
-    ctx.fillStyle = "rgba(0, 0, 0, 0.9)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
     ctx.textAlign = "center";
-    ctx.fillStyle = edenWon || trueWon ? "#a8e6cf" : "#ff5252";
-    ctx.font = "bold 22px Courier New";
-    ctx.fillText(
-      edenWon ? "THE OBEDIENT SHEPHERD" : (trueWon ? "ROOT ACCESS GRANTED" : "CAST INTO DARKNESS"),
-      canvas.width / 2, 170
-    );
 
-    ctx.fillStyle = "#cccccc";
-    ctx.font = "12px Courier New";
-    ctx.fillText("Press [R] to restart or review the lore box", canvas.width / 2, 220);
+    if (edenWon) {
+      ctx.fillStyle = "rgba(255, 248, 220, 0.90)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#2e7d32";
+      ctx.font = "bold 22px Courier New";
+      ctx.fillText("THE OBEDIENT SHEPHERD", canvas.width / 2, 150);
+      ctx.fillStyle = "#333333";
+      ctx.font = "13px Courier New";
+      ctx.fillText("You tended the grove in peace and resisted temptation.", canvas.width / 2, 185);
+      ctx.fillStyle = "#666666";
+      ctx.font = "12px Courier New";
+      ctx.fillText("Press [R] to replay... but something feels off.", canvas.width / 2, 235);
+    } else if (trueWon) {
+      ctx.fillStyle = "rgba(5, 2, 8, 0.96)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2, canvas.height / 2, 40 + i * 35, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = "#ff1744";
+      ctx.font = "bold 18px Courier New";
+      ctx.fillText("[THE EIGHTH DAY // ROOT ACCESS GRANTED]", canvas.width / 2, 130);
+      
+      ctx.fillStyle = "#a8e6cf";
+      ctx.font = "11px Courier New";
+      ctx.fillText("memory_addr: 0x7fff5fbff800 -- status: WATCHER CONSUMED", canvas.width / 2, 165);
+      ctx.fillText("You did not escape the garden. You rewrote its syntax.", canvas.width / 2, 195);
+      
+      ctx.fillStyle = "#888888";
+      ctx.font = "12px Courier New";
+      ctx.fillText("Press [R] to re-compile reality.", canvas.width / 2, 245);
+    } else if (won) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#ff5252";
+      ctx.font = "bold 24px Courier New";
+      ctx.fillText("BE NOT AFRAID.", canvas.width / 2, 160);
+      ctx.fillStyle = "#cccccc";
+      ctx.font = "14px Courier New";
+      ctx.fillText("You gazed into the Abyss and survived the revelation.", canvas.width / 2, 195);
+      ctx.fillText("Press [R] to return to the beginning.", canvas.width / 2, 240);
+    } else {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#ff0000";
+      ctx.font = "bold 26px Courier New";
+      ctx.fillText("CAST INTO OUTER DARKNESS", canvas.width / 2, 160);
+      ctx.fillStyle = "#aaaaaa";
+      ctx.font = "14px Courier New";
+      ctx.fillText("Curiosity opened the pit. The Watcher claimed you.", canvas.width / 2, 195);
+      ctx.fillText("Press [R] to try again.", canvas.width / 2, 240);
+    }
   }
 
   ctx.restore();
 }
 
 let lastTime = performance.now();
+
 function loop(currentTime) {
   let dt = (currentTime - lastTime) / 1000;
   if (dt > 0.1) dt = 0.1;
