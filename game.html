@@ -432,11 +432,10 @@ function spawnItem() {
 function spawnPhantomItem() {
   phantomItem.x = 50 + Math.random() * (canvas.width - 120);
   phantomItem.y = 50 + Math.random() * (canvas.height - 100);
-  // Make sure it spawns far enough from the real item and the player
   if (Math.hypot(phantomItem.x - item.x, phantomItem.y - item.y) > 120 &&
       Math.hypot(phantomItem.x - player.x, phantomItem.y - player.y) > 100) {
     phantomItem.active = true;
-    phantomItem.timer = 320; // Lingers for ~5.3 seconds unless approached
+    phantomItem.timer = 320;
   }
 }
 
@@ -644,12 +643,14 @@ function update() {
     player.y = nextY;
   }
 
-  // Paranoia Whispering Lore Box check when standing still
-  const moved = (player.x !== prevX || player.y !== prevY);
-  if (!moved) {
+  // Responsive Paranoia Standing-Still Check
+  const actualDeltaX = Math.abs(player.x - prevX);
+  const actualDeltaY = Math.abs(player.y - prevY);
+  const isStandingStill = (actualDeltaX < 0.01 && actualDeltaY < 0.01);
+
+  if (isStandingStill) {
     idleFrames++;
-    // After ~3.5 seconds of standing still (210 frames)
-    if (idleFrames === 210 && (isUpsideDown || score >= 4 || forbiddenTouches > 0)) {
+    if (idleFrames === 150) { // Triggers after ~2.5 seconds of stillness anywhere
       isWhispering = true;
       const pool = isUpsideDown ? abyssWhispers : edenWhispers;
       loreBox.style.color = "#ff5252";
@@ -704,7 +705,7 @@ function update() {
       watcher.baseSpeed += isTrueAbyss ? 0.13 : 0.14;
       watcherStunTimer = 36; 
       shakeTime = 20;
-      phantomItem.active = false; // Clear phantom on real seal break
+      phantomItem.active = false;
       
       if (eyesCollected >= targetSeals) {
         gameOver = true;
@@ -723,14 +724,12 @@ function update() {
   }
 
   if (isUpsideDown) {
-    // Phantom Eye Hallucinations in the Abyss
     if (!phantomItem.active && eyesCollected >= 1 && Math.random() < 0.002) {
       spawnPhantomItem();
     }
     if (phantomItem.active) {
       phantomItem.timer--;
       const distToPhantom = Math.hypot((player.x + 10) - (phantomItem.x + 7), (player.y + 10) - (phantomItem.y + 7));
-      // Dissolves if player gets close or timer expires
       if (distToPhantom < 42 || phantomItem.timer <= 0) {
         phantomItem.active = false;
         if (distToPhantom < 42) {
@@ -891,7 +890,6 @@ function draw() {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    // Real Eye Item
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
     ctx.ellipse(item.x + 7, item.y + 7, 10, 6, 0, 0, Math.PI * 2);
@@ -901,7 +899,6 @@ function draw() {
     ctx.arc(item.x + 7, item.y + 7, 3.5, 0, Math.PI * 2);
     ctx.fill();
 
-    // Phantom Hallucination Eye (flickers faintly)
     if (phantomItem.active && glitchTimer % 6 < 4) {
       ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
       ctx.beginPath();
