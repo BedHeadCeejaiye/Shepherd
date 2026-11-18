@@ -17,7 +17,7 @@
     border: 3px solid #333;
     border-radius: 4px;
     box-shadow: 0 0 20px rgba(0,0,0,0.8);
-    background-color: #7ec850;
+    background-color: #558b2f; /* Deepened forest green */
     outline: none;
   }
   #hud {
@@ -34,7 +34,7 @@
     margin-top: 10px;
     padding: 10px;
     background: #161a23;
-    border-left: 4px solid #7ec850;
+    border-left: 4px solid #558b2f;
     font-size: 14px;
     line-height: 1.4;
     transition: all 0.5s ease;
@@ -45,7 +45,7 @@
 
 <div id="hud">
   <span id="score-text">FRUITS GATHERED: 0</span>
-  <span id="realm-text" style="color: #a8e6cf;">REALM: EDEN'S MEADOW</span>
+  <span id="realm-text" style="color: #a8e6cf;">REALM: EDEN'S GROVE</span>
 </div>
 
 <canvas id="gameCanvas" width="600" height="400" tabindex="0"></canvas>
@@ -75,7 +75,7 @@ let shakeTime = 0;
 let glitchTimer = 0;
 
 const player = {
-  x: 100,
+  x: 50,
   y: 200,
   size: 20,
   speed: 2.0
@@ -87,9 +87,25 @@ let item = {
   size: 14
 };
 
+// A dense forest of decoy trees scattered around the map
+const forestTrees = [
+  { x: 60, y: 50 },
+  { x: 180, y: 40 },
+  { x: 310, y: 70 },
+  { x: 440, y: 45 },
+  { x: 120, y: 160 },
+  { x: 250, y: 180 },
+  { x: 400, y: 150 },
+  { x: 70, y: 290 },
+  { x: 190, y: 320 },
+  { x: 330, y: 300 },
+  { x: 450, y: 280 }
+];
+
+// The Trigger Tree (Hidden in plain sight on the east side, but with dead grass around it)
 const anomaly = {
   x: 520,
-  y: 180,
+  y: 190,
   width: 45,
   height: 45
 };
@@ -107,7 +123,7 @@ const abyssLore = [
   "JOB 26:6 — 'Sheol is naked before Him, and Abaddon has no covering.'",
   "REVELATION 9:11 — 'They had as king over them the angel of the Abyss, whose name in Hebrew is Abaddon.'",
   "MATTHEW 8:12 — 'Thrown outside into the darkness, where there will be weeping and gnashing of teeth.'",
-  "THE SEVENTH SEAL IS BROKEN. YOU CANNOT RETURN TO THE MEADOW."
+  "THE SEVENTH SEAL IS BROKEN. YOU CANNOT RETURN TO THE GROVE."
 ];
 
 const keys = {};
@@ -125,7 +141,7 @@ window.addEventListener("keyup", (e) => {
 });
 
 function spawnItem() {
-  item.x = 40 + Math.random() * (canvas.width - 140);
+  item.x = 40 + Math.random() * (canvas.width - 120);
   item.y = 40 + Math.random() * (canvas.height - 80);
 }
 
@@ -157,18 +173,18 @@ function resetGame() {
   score = 0;
   eyesCollected = 0;
   forbiddenTouches = 0;
-  shakeTime = 0; // <-- Resets the shake timer completely on restart!
-  player.x = 100;
+  shakeTime = 0;
+  player.x = 50;
   player.y = 200;
   watcher.speed = 1.25;
   
-  realmText.innerText = "REALM: EDEN'S MEADOW";
+  realmText.innerText = "REALM: EDEN'S GROVE";
   realmText.style.color = "#a8e6cf";
   scoreText.innerText = "FRUITS GATHERED: 0";
   scoreText.style.color = "#ffffff";
   
   loreBox.style.background = "#161a23";
-  loreBox.style.borderLeft = "4px solid #7ec850";
+  loreBox.style.borderLeft = "4px solid #558b2f";
   loreBox.style.color = "#e0e0e0";
   loreBox.innerText = '"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."';
   spawnItem();
@@ -176,6 +192,15 @@ function resetGame() {
 
 function checkCollision(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+function drawTree(x, y, isTainted) {
+  ctx.fillStyle = isTainted ? "#2b1111" : "#2e1c0c";
+  ctx.fillRect(x + 15, y + 20, 15, 25);
+  ctx.fillStyle = isTainted ? "#4a0e0e" : "#1b4d1b";
+  ctx.beginPath();
+  ctx.arc(x + 22, y + 15, 22, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function update() {
@@ -195,7 +220,7 @@ function update() {
       score++;
       scoreText.innerText = `FRUITS GATHERED: ${score}`;
       if (score === 5) {
-        loreBox.innerText = "Everything is peaceful. Just keep gathering fruit. Do NOT touch the dark tree on the east edge.";
+        loreBox.innerText = "Deep in the woods, the shadows grow long. Pay attention to where the grass has withered.";
       }
       spawnItem();
     } else {
@@ -222,11 +247,11 @@ function update() {
       player.x -= 25;
       
       if (forbiddenTouches === 1) {
-        loreBox.innerText = "A withered tree stands at the edge of the garden. Leave it alone.";
+        loreBox.innerText = "The bark of this particular tree is unnaturally cold to the touch...";
       } else if (forbiddenTouches === 2) {
-        loreBox.innerText = "The bark bleeds black sap. Turn back to your flock.";
+        loreBox.innerText = "A drop of black sap leaks from the grain. Something feels wrong.";
       } else if (forbiddenTouches === 3) {
-        loreBox.innerText = "You hear whispering beneath the soil... STOP.";
+        loreBox.innerText = "You hear faint whispers echoing up through the roots... Turn back.";
       } else if (forbiddenTouches >= 4) {
         triggerUpsideDown();
       }
@@ -260,32 +285,44 @@ function draw() {
   }
 
   if (!isUpsideDown) {
-    ctx.fillStyle = "#7ec850";
+    // === FOREST GROVE ===
+    ctx.fillStyle = "#558b2f";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = "#fff59d";
-    for (let i = 0; i < 12; i++) {
-      ctx.fillRect((i * 53) % 580, (i * 97) % 380, 4, 4);
-    }
-
-    ctx.fillStyle = forbiddenTouches > 0 ? "#2b1111" : "#3e2723";
-    ctx.fillRect(anomaly.x + 15, anomaly.y + 20, 15, 25);
-    ctx.fillStyle = forbiddenTouches > 0 ? "#4a0e0e" : "#1b5e20";
+    // Subtle dead grass patch hinting around the trigger tree
+    ctx.fillStyle = "#4a7527";
     ctx.beginPath();
-    ctx.arc(anomaly.x + 22, anomaly.y + 15, 22, 0, Math.PI * 2);
+    ctx.arc(anomaly.x + 22, anomaly.y + 20, 35, 0, Math.PI * 2);
     ctx.fill();
 
+    // Wildflower speckles on the forest floor
+    ctx.fillStyle = "#fff59d";
+    for (let i = 0; i < 10; i++) {
+      ctx.fillRect((i * 59) % 580, (i * 83) % 380, 4, 4);
+    }
+
+    // Golden Apple
     ctx.fillStyle = "#ffd700";
     ctx.beginPath();
     ctx.arc(item.x + 7, item.y + 7, 7, 0, Math.PI * 2);
     ctx.fill();
 
+    // Player
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(player.x, player.y, player.size, player.size);
     ctx.fillStyle = "#000000";
     ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
 
+    // Draw Decoy Forest Trees
+    for (const tree of forestTrees) {
+      drawTree(tree.x, tree.y, false);
+    }
+
+    // Draw the Trigger Tree (with a subtly darker shade for the observant)
+    drawTree(anomaly.x, anomaly.y, forbiddenTouches > 0);
+
   } else {
+    // === THE UPSIDE DOWN (SHEOL / ABYSS) ===
     ctx.fillStyle = "#090202";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -303,6 +340,7 @@ function draw() {
       ctx.fillRect(0, Math.random() * canvas.height, canvas.width, 4);
     }
 
+    // Collectible: The Ophanim Eye
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
     ctx.ellipse(item.x + 7, item.y + 7, 10, 6, 0, 0, Math.PI * 2);
@@ -312,9 +350,11 @@ function draw() {
     ctx.arc(item.x + 7, item.y + 7, 3.5, 0, Math.PI * 2);
     ctx.fill();
 
+    // Player
     ctx.fillStyle = "#b0bec5";
     ctx.fillRect(player.x, player.y, player.size, player.size);
 
+    // The Watcher
     ctx.save();
     ctx.translate(watcher.x + watcher.size / 2, watcher.y + watcher.size / 2);
     ctx.rotate(glitchTimer * 0.05);
