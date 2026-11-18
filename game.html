@@ -196,7 +196,7 @@ const player = {
   x: 50,
   y: 200,
   size: 20,
-  speed: 2.05
+  speed: 125 // Pixels per second (frame-rate independent)
 };
 
 let item = {
@@ -238,7 +238,7 @@ const watcher = {
   x: 550,
   y: 50,
   size: 28,
-  baseSpeed: 1.55
+  baseSpeed: 95 // Pixels per second
 };
 
 const abyssLore = [
@@ -295,7 +295,7 @@ function processCommand(cmd) {
       " - trueabyss: Instantly triggers the Bottomless Pit\n" +
       " - unlockall: Instantly unlocks all 4 endings\n" +
       " - godmode: Toggles invulnerability against The Watcher\n" +
-      " - speed <val>: Sets player speed (default: 2.05)\n" +
+      " - speed <val>: Sets player speed (default: 125)\n" +
       " - teleport: Warps player to a safe random location\n" +
       " - flicker: Forces an immediate subliminal flicker\n" +
       " - clear: Clears console terminal log"
@@ -325,11 +325,11 @@ function processCommand(cmd) {
     logToConsole(`[SYS]: Godmode is now ${godMode ? "ENABLED" : "DISABLED"}.`);
   } else if (baseCmd === "speed") {
     const val = parseFloat(parts[1]);
-    if (!isNaN(val) && val > 0 && val <= 15) {
+    if (!isNaN(val) && val > 0 && val <= 500) {
       player.speed = val;
       logToConsole(`[SYS]: Player speed set to ${val}.`);
     } else {
-      logToConsole("[ERROR]: Usage: speed <number between 0.1 and 15>");
+      logToConsole("[ERROR]: Usage: speed <number between 1 and 500>");
     }
   } else if (baseCmd === "teleport") {
     let valid = false;
@@ -455,7 +455,7 @@ function triggerUpsideDown(trueMode = false) {
   player.y = 200;
   watcher.x = 540;
   watcher.y = 200;
-  watcher.baseSpeed = trueMode ? 1.65 : 1.55;
+  watcher.baseSpeed = trueMode ? 100 : 95;
   
   realmText.innerText = trueMode ? "REALM: THE BOTTOMLESS PIT" : "REALM: SHEOL // THE ABYSS";
   realmText.style.color = "#ff2a2a";
@@ -513,7 +513,7 @@ function resetGame() {
   phantomItem.active = false;
   player.x = 50;
   player.y = 200;
-  watcher.baseSpeed = 1.55;
+  watcher.baseSpeed = 95;
   
   canvas.style.borderColor = "#333";
   canvas.style.boxShadow = "0 0 20px rgba(0,0,0,0.8)";
@@ -576,17 +576,17 @@ function updateSanityBorder() {
   canvas.style.boxShadow = `0 0 ${spread}px rgba(${red}, 0, 0, ${alpha.toFixed(2)})`;
 }
 
-function update() {
+function update(dt) {
   if (consoleOpen) return;
 
-  if (shakeTime > 0) shakeTime--;
-  if (flickerFrames > 0) flickerFrames--;
-  if (watcherStunTimer > 0) watcherStunTimer--;
-  if (flickerCooldown > 0) flickerCooldown--;
+  if (shakeTime > 0) shakeTime -= dt * 60;
+  if (flickerFrames > 0) flickerFrames -= dt * 60;
+  if (watcherStunTimer > 0) watcherStunTimer -= dt * 60;
+  if (flickerCooldown > 0) flickerCooldown -= dt * 60;
   if (gameOver) return;
 
-  if (!isUpsideDown && score >= 8 && flickerFrames === 0 && flickerCooldown === 0) {
-    if (Math.random() < 0.0006) {
+  if (!isUpsideDown && score >= 8 && flickerFrames <= 0 && flickerCooldown <= 0) {
+    if (Math.random() < 0.035 * dt) { // Probabilistic check scaled with dt
       if (!hasFlickeredBefore) {
         flickerFrames = 2;
         hasFlickeredBefore = true;
@@ -598,10 +598,11 @@ function update() {
   }
 
   let touchedAnomalyThisFrame = false;
+  let moveDistance = player.speed * dt;
 
   let nextX = player.x;
-  if (keys["a"] || keys["arrowleft"]) nextX -= player.speed;
-  if (keys["d"] || keys["arrowright"]) nextX += player.speed;
+  if (keys["a"] || keys["arrowleft"]) nextX -= moveDistance;
+  if (keys["d"] || keys["arrowright"]) nextX += moveDistance;
   nextX = Math.max(0, Math.min(canvas.width - player.size, nextX));
   
   let collidedX = false;
@@ -622,8 +623,8 @@ function update() {
   }
 
   let nextY = player.y;
-  if (keys["w"] || keys["arrowup"]) nextY -= player.speed;
-  if (keys["s"] || keys["arrowdown"]) nextY += player.speed;
+  if (keys["w"] || keys["arrowup"]) nextY -= moveDistance;
+  if (keys["s"] || keys["arrowdown"]) nextY += moveDistance;
   nextY = Math.max(0, Math.min(canvas.height - player.size, nextY));
   
   let collidedY = false;
@@ -700,7 +701,7 @@ function update() {
       scoreText.innerText = `SEALS BROKEN: ${eyesCollected} / ${targetSeals}`;
       setLore(abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)]);
       
-      watcher.baseSpeed += isTrueAbyss ? 0.13 : 0.14;
+      watcher.baseSpeed += isTrueAbyss ? 8 : 9;
       watcherStunTimer = 36; 
       shakeTime = 20;
       phantomItem.active = false;
@@ -722,11 +723,11 @@ function update() {
   }
 
   if (isUpsideDown) {
-    if (!phantomItem.active && eyesCollected >= 1 && Math.random() < 0.002) {
+    if (!phantomItem.active && eyesCollected >= 1 && Math.random() < 0.12 * dt) {
       spawnPhantomItem();
     }
     if (phantomItem.active) {
-      phantomItem.timer--;
+      phantomItem.timer -= dt * 60;
       const distToPhantom = Math.hypot((player.x + 10) - (phantomItem.x + 7), (player.y + 10) - (phantomItem.y + 7));
       if (distToPhantom < 42 || phantomItem.timer <= 0) {
         phantomItem.active = false;
@@ -744,20 +745,20 @@ function update() {
     if (dist > 0) {
       let dynamicSpeed = watcher.baseSpeed;
       if (dist > 200) {
-        dynamicSpeed += 0.85;
+        dynamicSpeed += 55;
       } else if (dist < 80) {
-        dynamicSpeed -= 0.08;
+        dynamicSpeed -= 5;
       }
 
-      const maxCap = isTrueAbyss ? 2.02 : 1.96;
+      const maxCap = isTrueAbyss ? 130 : 122;
       dynamicSpeed = Math.min(dynamicSpeed, maxCap);
 
       if (watcherStunTimer > 0) {
         dynamicSpeed *= 0.25;
       }
 
-      watcher.x += (dx / dist) * dynamicSpeed;
-      watcher.y += (dy / dist) * dynamicSpeed;
+      watcher.x += (dx / dist) * dynamicSpeed * dt;
+      watcher.y += (dy / dist) * dynamicSpeed * dt;
     }
 
     const pad = 4;
@@ -773,7 +774,7 @@ function update() {
   }
 
   updateSanityBorder();
-  glitchTimer++;
+  glitchTimer += dt * 60;
 }
 
 function drawWatcher(wx, wy, wsize) {
@@ -878,7 +879,7 @@ function draw() {
       ctx.stroke();
     }
 
-    if (glitchTimer % 10 < 2) {
+    if (Math.floor(glitchTimer) % 10 < 2) {
       ctx.fillStyle = "rgba(255, 0, 0, 0.08)";
       ctx.fillRect(0, Math.random() * canvas.height, canvas.width, 4);
     }
@@ -897,7 +898,7 @@ function draw() {
     ctx.arc(item.x + 7, item.y + 7, 3.5, 0, Math.PI * 2);
     ctx.fill();
 
-    if (phantomItem.active && glitchTimer % 6 < 4) {
+    if (phantomItem.active && Math.floor(glitchTimer) % 6 < 4) {
       ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
       ctx.beginPath();
       ctx.ellipse(phantomItem.x + 7, phantomItem.y + 7, 10, 6, 0, 0, Math.PI * 2);
@@ -974,17 +975,23 @@ function draw() {
     }
   }
 
-    ctx.restore();
+  ctx.restore();
 }
 
-function loop() {
-  update();
+let lastTime = performance.now();
+
+function loop(currentTime) {
+  let dt = (currentTime - lastTime) / 1000;
+  if (dt > 0.1) dt = 0.1; // Cap dt if tab loses focus to prevent giant physics jumps
+  lastTime = currentTime;
+
+  update(dt);
   draw();
   requestAnimationFrame(loop);
 }
 
 updateSigilHUD();
-loop();
+requestAnimationFrame(loop);
 </script>
 </body>
 </html>
