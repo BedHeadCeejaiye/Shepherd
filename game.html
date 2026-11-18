@@ -87,25 +87,28 @@ let item = {
   size: 14
 };
 
+// Mix of round and boxy trees across the forest
 const forestTrees = [
-  { x: 60, y: 50, width: 45, height: 45 },
-  { x: 180, y: 40, width: 45, height: 45 },
-  { x: 310, y: 70, width: 45, height: 45 },
-  { x: 440, y: 45, width: 45, height: 45 },
-  { x: 120, y: 160, width: 45, height: 45 },
-  { x: 250, y: 180, width: 45, height: 45 },
-  { x: 400, y: 150, width: 45, height: 45 },
-  { x: 70, y: 290, width: 45, height: 45 },
-  { x: 190, y: 320, width: 45, height: 45 },
-  { x: 330, y: 300, width: 45, height: 45 },
-  { x: 450, y: 280, width: 45, height: 45 }
+  { x: 60, y: 50, width: 45, height: 45, style: "round" },
+  { x: 180, y: 40, width: 45, height: 45, style: "boxy" },
+  { x: 310, y: 70, width: 45, height: 45, style: "round" },
+  { x: 440, y: 45, width: 45, height: 45, style: "boxy" },
+  { x: 120, y: 160, width: 45, height: 45, style: "boxy" },
+  { x: 250, y: 180, width: 45, height: 45, style: "round" },
+  { x: 400, y: 150, width: 45, height: 45, style: "boxy" },
+  { x: 70, y: 290, width: 45, height: 45, style: "round" },
+  { x: 190, y: 320, width: 45, height: 45, style: "boxy" },
+  { x: 330, y: 300, width: 45, height: 45, style: "round" },
+  { x: 450, y: 280, width: 45, height: 45, style: "boxy" }
 ];
 
+// Trigger tree (round canopy with blocky trunk, no ground circle)
 const anomaly = {
   x: 520,
   y: 190,
   width: 45,
-  height: 45
+  height: 45,
+  style: "round"
 };
 
 const watcher = {
@@ -229,11 +232,20 @@ function checkCollision(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 }
 
-function drawTree(x, y) {
-  ctx.fillStyle = "#2e1c0c"; // trunk
+function drawTree(x, y, style = "round") {
+  // Blocky trunk
+  ctx.fillStyle = "#2e1c0c";
   ctx.fillRect(x + 16, y + 22, 13, 20);
-  ctx.fillStyle = "#1b4d1b"; // tree top
-  ctx.fillRect(x + 5, y + 5, 35, 22);
+
+  // Canopy (either circular or boxy)
+  ctx.fillStyle = "#1b4d1b";
+  if (style === "boxy") {
+    ctx.fillRect(x + 5, y + 5, 35, 22);
+  } else {
+    ctx.beginPath();
+    ctx.arc(x + 22.5, y + 16, 19, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 function update() {
@@ -295,7 +307,7 @@ function update() {
       score++;
       scoreText.innerText = `FRUITS GATHERED: ${score} / 20`;
       if (score === 5) {
-        loreBox.innerText = "Deep in the woods, the shadows grow long. Pay attention to where the grass has withered.";
+        loreBox.innerText = "Deep in the woods, the shadows grow long. Something feels different near the eastern edge.";
       } else if (score === 12) {
         loreBox.innerText = "You remain faithful to the harvest, ignoring the strange pull from the east.";
       }
@@ -356,8 +368,6 @@ function draw() {
     ctx.fillStyle = "#558b2f";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // (Hint circle removed entirely from here!)
-
     ctx.fillStyle = "#fff59d";
     for (let i = 0; i < 10; i++) {
       ctx.fillRect((i * 59) % 580, (i * 83) % 380, 4, 4);
@@ -373,13 +383,13 @@ function draw() {
     ctx.fillStyle = "#000000";
     ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
 
-    // Draw all decoy trees
+    // Draw all decoy trees (mix of round and boxy)
     for (const tree of forestTrees) {
-      drawTree(tree.x, tree.y);
+      drawTree(tree.x, tree.y, tree.style);
     }
 
-    // Draw the Trigger Tree (now completely indistinguishable from the rest)
-    drawTree(anomaly.x, anomaly.y);
+    // Draw the Trigger Tree (matches the round trees without any ground circle)
+    drawTree(anomaly.x, anomaly.y, anomaly.style);
 
   } else {
     ctx.fillStyle = "#090202";
