@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #0e1117;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: 'Courier New', Courier, monospace;
+    color: white;
+    user-select: none;
+  }
+  canvas {
+    border: 3px solid #333;
+    border-radius: 4px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.8);
+    background-color: #7ec850;
+    outline: none;
+  }
+  #hud {
+    width: 600px;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 16px;
+    font-weight: bold;
+  }
+  #lore-box {
+    width: 580px;
+    min-height: 45px;
+    margin-top: 10px;
+    padding: 10px;
+    background: #161a23;
+    border-left: 4px solid #7ec850;
+    font-size: 14px;
+    line-height: 1.4;
+    transition: all 0.5s ease;
+  }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <span id="score-text">FRUITS GATHERED: 0</span>
+  <span id="realm-text" style="color: #a8e6cf;">REALM: EDEN'S MEADOW</span>
+</div>
+
+<canvas id="gameCanvas" width="600" height="400" tabindex="0"></canvas>
+
+<div id="lore-box">
+  "The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const scoreText = document.getElementById("score-text");
+const realmText = document.getElementById("realm-text");
+const loreBox = document.getElementById("lore-box");
+
+// Auto-focus canvas on click so keyboard works immediately in Streamlit iframe
+canvas.focus();
+canvas.addEventListener("click", () => canvas.focus());
+
+let isUpsideDown = false;
+let gameOver = false;
+let won = false;
+let score = 0;
+let eyesCollected = 0;
+let forbiddenTouches = 0;
+let shakeTime = 0;
+let glitchTimer = 0;
+
+const player = {
+  x: 100,
+  y: 200,
+  size: 20,
+  speed: 3.2
+};
+
+let item = {
+  x: 300,
+  y: 200,
+  size: 14
+};
+
+const anomaly = {
+  x: 520,
+  y: 180,
+  width: 45,
+  height: 45
+};
+
+const watcher = {
+  x: 550,
+  y: 50,
+  size: 28,
+  speed: 1.55
+};
+
+const abyssLore = [
+  "GENESIS 3:24 — 'He drove out the man; and placed at the east of the garden Cherubims, and a flaming sword...'",
+  "EZEKIEL 1:18 — 'As for their rings, they were so high that they were dreadful; and their rings were full of eyes round about them.'",
+  "JOB 26:6 — 'Sheol is naked before Him, and Abaddon has no covering.'",
+  "REVELATION 9:11 — 'They had as king over them the angel of the Abyss, whose name in Hebrew is Abaddon.'",
+  "MATTHEW 8:12 — 'Thrown outside into the darkness, where there will be weeping and gnashing of teeth.'",
+  "THE SEVENTH SEAL IS BROKEN. YOU CANNOT RETURN TO THE MEADOW."
+];
+
+const keys = {};
+window.addEventListener("keydown", (e) => {
+  keys[e.key.toLowerCase()] = true;
+  if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(e.key.toLowerCase())) {
+    e.preventDefault();
+  }
+  if (gameOver && e.key.toLowerCase() === "r") {
+    resetGame();
+  }
+});
+window.addEventListener("keyup", (e) => {
+  keys[e.key.toLowerCase()] = false;
+});
+
+function spawnItem() {
+  item.x = 40 + Math.random() * (canvas.width - 140);
+  item.y = 40 + Math.random() * (canvas.height - 80);
+}
+
+function triggerUpsideDown() {
+  isUpsideDown = true;
+  shakeTime = 45;
+  score = 0;
+  player.x = 60;
+  player.y = 200;
+  watcher.x = 540;
+  watcher.y = 200;
+  
+  realmText.innerText = "REALM: SHEOL // THE ABYSS";
+  realmText.style.color = "#ff2a2a";
+  scoreText.innerText = "SEALS BROKEN: 0 / 6";
+  scoreText.style.color = "#ff2a2a";
+  
+  loreBox.style.background = "#1a0505";
+  loreBox.style.borderLeft = "4px solid #ff0000";
+  loreBox.style.color = "#ff9999";
+  loreBox.innerText = "YOU ATE FROM THE FORBIDDEN ROOT. THE SKY HAS ROLLED UP LIKE A SCROLL.";
+  spawnItem();
+}
+
+function resetGame() {
+  isUpsideDown = false;
+  gameOver = false;
+  won = false;
+  score = 0;
+  eyesCollected = 0;
+  forbiddenTouches = 0;
+  player.x = 100;
+  player.y = 200;
+  watcher.speed = 1.55;
+  
+  realmText.innerText = "REALM: EDEN'S MEADOW";
+  realmText.style.color = "#a8e6cf";
+  scoreText.innerText = "FRUITS GATHERED: 0";
+  scoreText.style.color = "#ffffff";
+  
+  loreBox.style.background = "#161a23";
+  loreBox.style.borderLeft = "4px solid #7ec850";
+  loreBox.style.color = "#e0e0e0";
+  loreBox.innerText = '"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."';
+  spawnItem();
+}
+
+function checkCollision(ax, ay, aw, ah, bx, by, bw, bh) {
+  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+function update() {
+  if (gameOver) return;
+
+  if (keys["w"] || keys["arrowup"]) player.y -= player.speed;
+  if (keys["s"] || keys["arrowdown"]) player.y += player.speed;
+  if (keys["a"] || keys["arrowleft"]) player.x -= player.speed;
+  if (keys["d"] || keys["arrowright"]) player.x += player.speed;
+
+  player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
+  player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
+
+  if (checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
+    if (!isUpsideDown) {
+      score++;
+      scoreText.innerText = `FRUITS GATHERED: ${score}`;
+      if (score === 5) {
+        loreBox.innerText = "Everything is peaceful. Just keep gathering fruit. Do NOT touch the dark tree on the east edge.";
+      }
+      spawnItem();
+    } else {
+      eyesCollected++;
+      scoreText.innerText = `SEALS BROKEN: ${eyesCollected} / 6`;
+      loreBox.innerText = abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)];
+      watcher.speed += 0.25;
+      shakeTime = 15;
+      
+      if (eyesCollected >= 6) {
+        gameOver = true;
+        won = true;
+      } else {
+        spawnItem();
+      }
+    }
+  }
+
+  if (!isUpsideDown) {
+    if (checkCollision(player.x, player.y, player.size, player.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
+      forbiddenTouches++;
+      shakeTime = 8;
+      player.x -= 25;
+      
+      if (forbiddenTouches === 1) {
+        loreBox.innerText = "A withered tree stands at the edge of the garden. Leave it alone.";
+      } else if (forbiddenTouches === 2) {
+        loreBox.innerText = "The bark bleeds black sap. Turn back to your flock.";
+      } else if (forbiddenTouches === 3) {
+        loreBox.innerText = "You hear whispering beneath the soil... STOP.";
+      } else if (forbiddenTouches >= 4) {
+        triggerUpsideDown();
+      }
+    }
+  } else {
+    const dx = player.x - watcher.x;
+    const dy = player.y - watcher.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 0) {
+      watcher.x += (dx / dist) * watcher.speed;
+      watcher.y += (dy / dist) * watcher.speed;
+    }
+
+    if (checkCollision(player.x, player.y, player.size, player.size, watcher.x, watcher.y, watcher.size, watcher.size)) {
+      gameOver = true;
+      won = false;
+    }
+  }
+
+  if (shakeTime > 0) shakeTime--;
+  glitchTimer++;
+}
+
+function draw() {
+  ctx.save();
+
+  if (shakeTime > 0) {
+    const dx = (Math.random() - 0.5) * 10;
+    const dy = (Math.random() - 0.5) * 10;
+    ctx.translate(dx, dy);
+  }
+
+  if (!isUpsideDown) {
+    ctx.fillStyle = "#7ec850";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#fff59d";
+    for (let i = 0; i < 12; i++) {
+      ctx.fillRect((i * 53) % 580, (i * 97) % 380, 4, 4);
+    }
+
+    ctx.fillStyle = forbiddenTouches > 0 ? "#2b1111" : "#3e2723";
+    ctx.fillRect(anomaly.x + 15, anomaly.y + 20, 15, 25);
+    ctx.fillStyle = forbiddenTouches > 0 ? "#4a0e0e" : "#1b5e20";
+    ctx.beginPath();
+    ctx.arc(anomaly.x + 22, anomaly.y + 15, 22, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#ffd700";
+    ctx.beginPath();
+    ctx.arc(item.x + 7, item.y + 7, 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(player.x, player.y, player.size, player.size);
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
+
+  } else {
+    ctx.fillStyle = "#090202";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = "#2a0808";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 8; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * 85, 0);
+      ctx.lineTo(i * 85 + 15, 60);
+      ctx.stroke();
+    }
+
+    if (glitchTimer % 10 < 2) {
+      ctx.fillStyle = "rgba(255, 0, 0, 0.08)";
+      ctx.fillRect(0, Math.random() * canvas.height, canvas.width, 4);
+    }
+
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.ellipse(item.x + 7, item.y + 7, 10, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ff0000";
+    ctx.beginPath();
+    ctx.arc(item.x + 7, item.y + 7, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#b0bec5";
+    ctx.fillRect(player.x, player.y, player.size, player.size);
+
+    ctx.save();
+    ctx.translate(watcher.x + watcher.size / 2, watcher.y + watcher.size / 2);
+    ctx.rotate(glitchTimer * 0.05);
+    
+    ctx.strokeStyle = "#ff1744";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(-18, -18, 36, 36);
+    ctx.rotate(Math.PI / 4);
+    ctx.strokeRect(-18, -18, 36, 36);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(0, 0, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#000000";
+    ctx.beginPath();
+    ctx.arc(0, 0, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    const gradient = ctx.createRadialGradient(
+      player.x + 10, player.y + 10, 35,
+      player.x + 10, player.y + 10, 210
+    );
+    gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+    gradient.addColorStop(1, "rgba(0, 0, 0, 0.94)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  if (gameOver) {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textAlign = "center";
+
+    if (won) {
+      ctx.fillStyle = "#ff5252";
+      ctx.font = "bold 24px Courier New";
+      ctx.fillText("BE NOT AFRAID.", canvas.width / 2, 160);
+      ctx.fillStyle = "#cccccc";
+      ctx.font = "14px Courier New";
+      ctx.fillText("You gazed into the Abyss and survived the revelation.", canvas.width / 2, 195);
+      ctx.fillText("Press [R] to return to the beginning.", canvas.width / 2, 240);
+    } else {
+      ctx.fillStyle = "#ff0000";
+      ctx.font = "bold 26px Courier New";
+      ctx.fillText("CAST INTO OUTER DARKNESS", canvas.width / 2, 160);
+      ctx.fillStyle = "#aaaaaa";
+      ctx.font = "14px Courier New";
+      ctx.fillText("Curiosity opened the pit. The Watcher claimed you.", canvas.width / 2, 195);
+      ctx.fillText("Press [R] to try again.", canvas.width / 2, 240);
+    }
+  }
+
+  ctx.restore();
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
