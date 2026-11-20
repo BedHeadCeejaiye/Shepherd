@@ -778,7 +778,7 @@ const forbiddenFruit = {
 
 function checkForbiddenFruitSpawn() {
   unlocked = JSON.parse(localStorage.getItem("eden_abyss_endings")) || unlocked;
-  forbiddenFruit.active = allBaseEndingsUnlocked();
+  forbiddenFruit.active = allBaseEndingsUnlocked() && !watcherDefeated;
   if (!isUpsideDown && !gameOver) {
     if (unlocked.trueEnd || watcherDefeated) {
       setLore("You wear the Watcher's rings now. The grass beneath your feet withers at your presence.");
@@ -943,7 +943,7 @@ function processCommand(cmd) {
       " - reset: Wipes all unlocked endings and revives The Watcher\n" +
       " - revive: Restores The Watcher so you can fight/consume it again\n" +
       " - abyss: Instantly triggers the standard Abyss realm\n" +
-      " - trueabyss: Instantly triggers the Bottomless Pit\n" +
+      " - trueabyss: Triggers the Bottomless Pit (or Abyss if Watcher was consumed)\n" +
       " - flee: Triggers the True Ending Chase Phase (if Watcher is not yet consumed)\n" +
       " - unlockall: Unlocks the 3 base seals & spawns the Crimson Fruit\n" +
       " - godmode: Toggles invulnerability against The Watcher\n" +
@@ -956,6 +956,7 @@ function processCommand(cmd) {
     unlocked.trueEnd = false;
     localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
     updateSigilHUD();
+    checkForbiddenFruitSpawn();
     logToConsole("[SYS]: The Watcher has been restored.");
   } else if (baseCmd === "crown") {
     unlocked.trueEnd = !unlocked.trueEnd;
@@ -989,12 +990,17 @@ function processCommand(cmd) {
     logToConsole("[SYS]: Forced entry into Sheol // The Abyss.");
     toggleConsole();
   } else if (baseCmd === "trueabyss") {
-    triggerUpsideDown(true);
-    logToConsole(`[SYS]: Forced entry into Bottomless Pit (${watcherDefeated ? "Watcher consumed - absent" : "Watcher active"}).`);
+    if (watcherDefeated) {
+      triggerUpsideDown(false);
+      logToConsole("[SYS]: Bottomless Pit no longer exists after consuming The Watcher. Entered Sheol // The Abyss instead.");
+    } else {
+      triggerUpsideDown(true);
+      logToConsole("[SYS]: Forced entry into Bottomless Pit.");
+    }
     toggleConsole();
   } else if (baseCmd === "flee") {
-    triggerUpsideDown(true);
-    if (!watcherConsumed) {
+    if (!watcherDefeated) {
+      triggerUpsideDown(true);
       isWatcherFleeing = true;
       fleeGraceTimer = 0.2;
       watcher.baseSpeed = 240;
@@ -1004,7 +1010,7 @@ function processCommand(cmd) {
       setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
       logToConsole("[SYS]: Forced True Ending Hunt Phase.");
     } else {
-      logToConsole("[SYS]: The Watcher has already been consumed. Use 'revive' or 'reset' to fight it again.");
+      logToConsole("[SYS]: The Watcher has already been consumed and the Bottomless Pit no longer exists. Use 'revive' or 'reset' to fight it again.");
     }
     toggleConsole();
   } else if (baseCmd === "unlockall") {
@@ -1111,6 +1117,7 @@ window.addEventListener("keyup", (e) => {
 });
 
 function spawnItem() {
+  if (isUpsideDown && watcherConsumed) return;
   let valid = false;
   while (!valid) {
     item.x = 40 + Math.random() * (canvas.width - 120);
@@ -1145,15 +1152,17 @@ function spawnPhantomItem() {
 }
 
 function triggerUpsideDown(trueMode = false) {
+  watcherConsumed = watcherDefeated;
+  // Once the Watcher is consumed, the Bottomless Pit no longer exists; only the Abyss remains
+  const allowPit = trueMode && !watcherConsumed;
   isUpsideDown = true;
-  isTrueAbyss = trueMode;
+  isTrueAbyss = allowPit;
   gameOver = false;
   won = false;
   edenWon = false;
   trueWon = false;
-  watcherConsumed = watcherDefeated;
-  targetSeals = trueMode ? 9 : 6;
-  shakeTime = trueMode ? 70 : 45;
+  targetSeals = watcherConsumed ? 0 : (allowPit ? 9 : 6);
+  shakeTime = allowPit ? 70 : 45;
   watcherStunTimer = watcherConsumed ? 0 : 45;
   score = 0;
   eyesCollected = 0;
@@ -1170,11 +1179,11 @@ function triggerUpsideDown(trueMode = false) {
   player.y = 200;
   watcher.x = 540;
   watcher.y = 200;
-  watcher.baseSpeed = trueMode ? 350 : 330;
+  watcher.baseSpeed = allowPit ? 350 : 330;
   
-  realmText.innerText = trueMode ? "REALM: THE BOTTOMLESS PIT" : "REALM: SHEOL // THE ABYSS";
+  realmText.innerText = allowPit ? "REALM: THE BOTTOMLESS PIT" : "REALM: SHEOL // THE ABYSS";
   realmText.style.color = "#ff2a2a";
-  scoreTextTop.innerText = watcherConsumed ? "WATCHER CONSUMED" : `SEALS BROKEN: ${eyesCollected}`;
+  scoreTextTop.innerText = watcherConsumed ? "NO SEALS REMAIN" : `SEALS BROKEN: ${eyesCollected}`;
   scoreTextBottom.innerText = watcherConsumed ? "" : `/ ${targetSeals}`;
   scoreTextTop.style.color = "#ff2a2a";
   
@@ -1182,11 +1191,13 @@ function triggerUpsideDown(trueMode = false) {
   loreBox.style.borderLeft = "4px solid #ff0000";
   loreBox.style.color = "#ff9999";
   setLore(watcherConsumed
-    ? "THE WATCHER IS GONE. THE PIT LIES SILENT UNDER YOUR CROWN."
-    : (trueMode
+    ? "THE BOTTOMLESS PIT IS GONE. ONLY THE ABYSS REMAINS, SILENT AND EMPTY."
+    : (allowPit
       ? "YOU CONSUMED THE CORE OF KNOWLEDGE. THE ABYSS KNOWS YOUR NAME."
       : "YOU TOUCHED THE FORBIDDEN ROOT. THE SKY HAS ROLLED UP LIKE A SCROLL."));
-  spawnItem();
+  if (!watcherConsumed) {
+    spawnItem();
+  }
 }
 
 function handleAnomalyTouch() {
@@ -1464,7 +1475,7 @@ function update(dt) {
     }
   }
 
-  if (!isWatcherFleeing && checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
+  if (!isWatcherFleeing && !(isUpsideDown && watcherConsumed) && checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
     if (!isUpsideDown) {
       playEdenCollectSound();
       score++;
@@ -1498,9 +1509,7 @@ function update(dt) {
 
       eyesCollected++;
       recordSealCollected();
-      if (!watcherConsumed) {
-        scoreTextTop.innerText = `SEALS BROKEN: ${eyesCollected}`;
-      }
+      scoreTextTop.innerText = `SEALS BROKEN: ${eyesCollected}`;
       setLore(abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)]);
       
       watcher.baseSpeed += isTrueAbyss ? 16 : 20;
@@ -1788,7 +1797,7 @@ function draw() {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    if (!isWatcherFleeing) {
+    if (!isWatcherFleeing && !watcherConsumed) {
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
       ctx.ellipse(item.x + 7, item.y + 7, 10, 6, 0, 0, Math.PI * 2);
