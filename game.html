@@ -681,11 +681,18 @@ let unlocked = JSON.parse(localStorage.getItem("eden_abyss_endings")) || {
 };
 
 let savedSealsCount = parseInt(localStorage.getItem("eden_abyss_seals_count")) || 0;
+let watcherDefeated = localStorage.getItem("eden_abyss_watcher_consumed") === "true";
 
 function saveEnding(key) {
   unlocked[key] = true;
   localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
   updateSigilHUD();
+}
+
+function setWatcherDefeated(val) {
+  watcherDefeated = val;
+  watcherConsumed = val;
+  localStorage.setItem("eden_abyss_watcher_consumed", val ? "true" : "false");
 }
 
 function recordSealCollected() {
@@ -716,7 +723,7 @@ let gameOver = false;
 let won = false;
 let edenWon = false;
 let trueWon = false;
-let watcherConsumed = false;
+let watcherConsumed = watcherDefeated;
 let score = 0;
 let eyesCollected = 0;
 let targetSeals = 6;
@@ -939,11 +946,11 @@ function processCommand(cmd) {
     logToConsole(
       "AVAILABLE COMMANDS:\n" +
       " - crown: Toggles wearing the Watcher's Crown & rings\n" +
-      " - reset: Wipes all unlocked endings and seal counts in localStorage\n" +
+      " - reset: Wipes all unlocked endings and revives The Watcher\n" +
       " - abyss: Instantly triggers the standard Abyss realm\n" +
       " - trueabyss: Instantly triggers the Bottomless Pit\n" +
       " - flee: Instantly triggers the True Ending Chase Phase\n" +
-      " - unlockall: Instantly unlocks all 4 endings and all seal lore\n" +
+      " - unlockall: Unlocks the 3 base seals & spawns the Crimson Fruit\n" +
       " - godmode: Toggles invulnerability against The Watcher\n" +
       " - speed <val>: Sets player speed (default: 360)\n" +
       " - teleport: Warps player to a safe random location\n" +
@@ -969,36 +976,43 @@ function processCommand(cmd) {
   } else if (baseCmd === "reset") {
     localStorage.removeItem("eden_abyss_endings");
     localStorage.removeItem("eden_abyss_seals_count");
+    localStorage.removeItem("eden_abyss_watcher_consumed");
     unlocked = { eden: false, death: false, revelation: false, trueEnd: false };
     savedSealsCount = 0;
+    setWatcherDefeated(false);
     updateSigilHUD();
     resetGame();
-    logToConsole("[SYS]: All endings and codex seals purged.");
+    logToConsole("[SYS]: All endings purged and The Watcher restored.");
   } else if (baseCmd === "abyss") {
     triggerUpsideDown(false);
     logToConsole("[SYS]: Forced entry into Sheol // The Abyss.");
     toggleConsole();
-  } else if (baseCmd === "trueabyss" || baseCmd === "flee") {
+  } else if (baseCmd === "trueabyss") {
     triggerUpsideDown(true);
-    if (baseCmd === "flee") {
-      isWatcherFleeing = true;
-      fleeGraceTimer = 0.2;
-      watcher.baseSpeed = 240;
-      scoreTextTop.innerText = "CONSUME THE WATCHER";
-      scoreTextBottom.innerText = "";
-      scoreTextTop.style.color = "#ffffff";
-      setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
-    }
-    logToConsole("[SYS]: Forced entry into Bottomless Pit // Hunt phase active.");
+    logToConsole(`[SYS]: Forced entry into Bottomless Pit (${watcherDefeated ? "Watcher defeated" : "Watcher active"}).`);
+    toggleConsole();
+  } else if (baseCmd === "flee") {
+    setWatcherDefeated(false);
+    triggerUpsideDown(true);
+    isWatcherFleeing = true;
+    fleeGraceTimer = 0.2;
+    watcher.baseSpeed = 240;
+    scoreTextTop.innerText = "CONSUME THE WATCHER";
+    scoreTextBottom.innerText = "";
+    scoreTextTop.style.color = "#ffffff";
+    setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
+    logToConsole("[SYS]: Forced True Ending Hunt Phase.");
     toggleConsole();
   } else if (baseCmd === "unlockall") {
-    unlocked = { eden: true, death: true, revelation: true, trueEnd: true };
-    savedSealsCount = 9;
+    unlocked.eden = true;
+    unlocked.death = true;
+    unlocked.revelation = true;
+    savedSealsCount = Math.max(savedSealsCount, 6);
     localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
     localStorage.setItem("eden_abyss_seals_count", savedSealsCount);
     updateSigilHUD();
     checkForbiddenFruitSpawn();
-    logToConsole("[SYS]: All endings and codex seal fragments unlocked.");
+    logToConsole("[SYS]: Base 3 seals unlocked. Touch the Crimson Fruit in Eden to enter the Bottomless Pit and fight The Watcher.");
   } else if (baseCmd === "godmode") {
     godMode = !godMode;
     logToConsole(`[SYS]: Godmode is now ${godMode ? "ENABLED" : "DISABLED"}.`);
@@ -1023,7 +1037,7 @@ function processCommand(cmd) {
             break;
           }
         }
-      } else if (Math.hypot(player.x - watcher.x, player.y - watcher.y) < 180) {
+      } else if (!watcherConsumed && Math.hypot(player.x - watcher.x, player.y - watcher.y) < 180) {
         valid = false;
       }
     }
@@ -1108,7 +1122,7 @@ function spawnItem() {
       if (checkCollision(item.x, item.y, item.size, item.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
         valid = false;
       }
-    } else {
+    } else if (!watcherConsumed) {
       if (Math.hypot(item.x - watcher.x, item.y - watcher.y) < 90) {
         valid = false;
       }
@@ -1129,10 +1143,10 @@ function spawnPhantomItem() {
 function triggerUpsideDown(trueMode = false) {
   isUpsideDown = true;
   isTrueAbyss = trueMode;
-  watcherConsumed = false;
+  watcherConsumed = watcherDefeated;
   targetSeals = trueMode ? 9 : 6;
   shakeTime = trueMode ? 70 : 45;
-  watcherStunTimer = 45;
+  watcherStunTimer = watcherConsumed ? 0 : 45;
   score = 0;
   eyesCollected = 0;
   playerStillTimer = performance.now();
@@ -1159,9 +1173,11 @@ function triggerUpsideDown(trueMode = false) {
   loreBox.style.background = "#1a0505";
   loreBox.style.borderLeft = "4px solid #ff0000";
   loreBox.style.color = "#ff9999";
-  setLore(trueMode
-    ? "YOU CONSUMED THE CORE OF KNOWLEDGE. THE ABYSS KNOWS YOUR NAME."
-    : "YOU TOUCHED THE FORBIDDEN ROOT. THE SKY HAS ROLLED UP LIKE A SCROLL.");
+  setLore(watcherConsumed
+    ? "THE WATCHER IS GONE. THE PIT LIES SILENT UNDER YOUR CROWN."
+    : (trueMode
+      ? "YOU CONSUMED THE CORE OF KNOWLEDGE. THE ABYSS KNOWS YOUR NAME."
+      : "YOU TOUCHED THE FORBIDDEN ROOT. THE SKY HAS ROLLED UP LIKE A SCROLL."));
   spawnItem();
 }
 
@@ -1193,7 +1209,7 @@ function resetGame() {
   won = false;
   edenWon = false;
   trueWon = false;
-  watcherConsumed = false;
+  watcherConsumed = watcherDefeated;
   score = 0;
   eyesCollected = 0;
   targetSeals = 6;
@@ -1478,13 +1494,17 @@ function update(dt) {
       setLore(abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)]);
       
       watcher.baseSpeed += isTrueAbyss ? 16 : 20;
-      watcherStunTimer = 36; 
+      watcherStunTimer = watcherConsumed ? 0 : 36; 
       shakeTime = 20;
       phantomItem.active = false;
       
       if (eyesCollected >= targetSeals) {
         if (isTrueAbyss) {
-          if (!isWatcherFleeing) {
+          if (watcherConsumed) {
+            gameOver = true;
+            trueWon = true;
+            shakeTime = 9999;
+          } else if (!isWatcherFleeing) {
             isWatcherFleeing = true;
             fleeGraceTimer = 0.6; 
             watcherStunTimer = 0; 
@@ -1585,7 +1605,7 @@ function update(dt) {
       player.x, player.y, player.size, player.size,
       watcher.x, watcher.y, watcher.size, watcher.size
     )) {
-      watcherConsumed = true;
+      setWatcherDefeated(true);
       isWatcherFleeing = false;
       watcherTrail = [];
       playTrueEndingSound();
@@ -1753,12 +1773,12 @@ function draw() {
       ctx.fillRect(0, Math.random() * canvas.height, canvas.width, 4);
     }
 
-    if (watcherStunTimer > 28) {
+    if (!watcherConsumed && watcherStunTimer > 28) {
       ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    if (!isWatcherFleeing && !watcherConsumed) {
+    if (!isWatcherFleeing) {
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
       ctx.ellipse(item.x + 7, item.y + 7, 10, 6, 0, 0, Math.PI * 2);
