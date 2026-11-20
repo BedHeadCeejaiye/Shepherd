@@ -716,6 +716,7 @@ let gameOver = false;
 let won = false;
 let edenWon = false;
 let trueWon = false;
+let watcherConsumed = false;
 let score = 0;
 let eyesCollected = 0;
 let targetSeals = 6;
@@ -1128,6 +1129,7 @@ function spawnPhantomItem() {
 function triggerUpsideDown(trueMode = false) {
   isUpsideDown = true;
   isTrueAbyss = trueMode;
+  watcherConsumed = false;
   targetSeals = trueMode ? 9 : 6;
   shakeTime = trueMode ? 70 : 45;
   watcherStunTimer = 45;
@@ -1191,6 +1193,7 @@ function resetGame() {
   won = false;
   edenWon = false;
   trueWon = false;
+  watcherConsumed = false;
   score = 0;
   eyesCollected = 0;
   targetSeals = 6;
@@ -1265,7 +1268,7 @@ function drawTree(x, y, style = "round", rot = 0) {
   }
 }
 
-// Exact match to The Watcher's interlocking 8-pointed star geometry
+// Same size and exact interlocking 8-pointed star geometry as The Watcher
 function drawPlayerWatcherRings(px, py, psize) {
   if (!unlocked.trueEnd) return;
 
@@ -1275,9 +1278,9 @@ function drawPlayerWatcherRings(px, py, psize) {
 
   ctx.strokeStyle = "#ff1744";
   ctx.lineWidth = 2;
-  ctx.strokeRect(-16, -16, 32, 32);
+  ctx.strokeRect(-18, -18, 36, 36);
   ctx.rotate(Math.PI / 4);
-  ctx.strokeRect(-16, -16, 32, 32);
+  ctx.strokeRect(-18, -18, 36, 36);
 
   ctx.restore();
 }
@@ -1299,7 +1302,7 @@ function updateSanityBorder() {
 
   updateAmbientSoundscape(proximity, isUpsideDown, isTrueAbyss);
 
-  if (isWatcherFleeing) {
+  if (isWatcherFleeing && !watcherConsumed) {
     const now = performance.now();
     if (now - lastHeartbeatTime > 520) {
       playHeartbeat(1.1);
@@ -1505,7 +1508,7 @@ function update(dt) {
     }
   }
 
-  if (isUpsideDown) {
+  if (isUpsideDown && !watcherConsumed) {
     if (!isWatcherFleeing) {
       if (!phantomItem.active && eyesCollected >= 1 && Math.random() < 0.12 * dt) {
         spawnPhantomItem();
@@ -1582,6 +1585,8 @@ function update(dt) {
       player.x, player.y, player.size, player.size,
       watcher.x, watcher.y, watcher.size, watcher.size
     )) {
+      watcherConsumed = true;
+      watcherTrail = [];
       playTrueEndingSound();
       gameOver = true;
       trueWon = true;
@@ -1608,6 +1613,8 @@ function update(dt) {
 }
 
 function drawWatcher(wx, wy, wsize, fleeing = false) {
+  if (watcherConsumed) return;
+
   if (fleeing) {
     for (let t of watcherTrail) {
       ctx.save();
