@@ -1265,57 +1265,19 @@ function drawTree(x, y, style = "round", rot = 0) {
   }
 }
 
-// Upgraded multi-ring Watcher crown halo around the player
+// Exact match to The Watcher's interlocking 8-pointed star geometry
 function drawPlayerWatcherRings(px, py, psize) {
   if (!unlocked.trueEnd) return;
 
-  const cx = px + psize / 2;
-  const cy = py + psize / 2;
-  const pulse = Math.sin(glitchTimer * 0.12) * 1.5;
-
   ctx.save();
-  ctx.translate(cx, cy);
+  ctx.translate(px + psize / 2, py + psize / 2);
+  ctx.rotate(glitchTimer * 0.12);
 
-  // Subtle crimson aura beneath the player
-  const aura = ctx.createRadialGradient(0, 0, 4, 0, 0, 24 + pulse);
-  aura.addColorStop(0, "rgba(255, 23, 68, 0.24)");
-  aura.addColorStop(1, "rgba(255, 23, 68, 0)");
-  ctx.fillStyle = aura;
-  ctx.beginPath();
-  ctx.arc(0, 0, 24 + pulse, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Outer rotating square cage
-  ctx.save();
-  ctx.rotate(glitchTimer * 0.08);
-  ctx.strokeStyle = isUpsideDown ? "rgba(255, 23, 68, 0.92)" : "rgba(220, 38, 38, 0.85)";
-  ctx.lineWidth = 1.8;
+  ctx.strokeStyle = "#ff1744";
+  ctx.lineWidth = 2;
   ctx.strokeRect(-16, -16, 32, 32);
-
-  // Corner node ticks on outer cage
-  ctx.fillStyle = "#ff1744";
-  const corners = [[-16, -16], [16, -16], [16, 16], [-16, 16]];
-  for (const [ox, oy] of corners) {
-    ctx.fillRect(ox - 2, oy - 2, 4, 4);
-  }
-  ctx.restore();
-
-  // Counter-rotating diamond/inner ring
-  ctx.save();
-  ctx.rotate(-glitchTimer * 0.14 + Math.PI / 4);
-  ctx.strokeStyle = isUpsideDown ? "rgba(255, 255, 255, 0.72)" : "rgba(153, 27, 27, 0.75)";
-  ctx.lineWidth = 1.3;
-  ctx.strokeRect(-12.5, -12.5, 25, 25);
-  ctx.restore();
-
-  // Orbiting crimson eye-mote on a wider radius
-  const orbitAngle = glitchTimer * 0.1;
-  const moteX = Math.cos(orbitAngle) * 20;
-  const moteY = Math.sin(orbitAngle) * 20;
-  ctx.fillStyle = "#ff1744";
-  ctx.beginPath();
-  ctx.arc(moteX, moteY, 2.5, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.rotate(Math.PI / 4);
+  ctx.strokeRect(-16, -16, 32, 32);
 
   ctx.restore();
 }
