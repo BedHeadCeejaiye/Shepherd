@@ -327,13 +327,9 @@ function lerpColor(hexA, hexB, t) {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
-// Calculates how rotten Eden is (0.0 = pristine green, up to ~0.75 = withered/infected)
+// Eden rots only once you have consumed the Watcher and become the Watcher
 function getEdenRotLevel() {
-  let rot = Math.min(savedSealsCount, 9) * 0.055;
-  if (unlocked.trueEnd) {
-    rot = Math.max(rot, 0.55) + 0.15;
-  }
-  return Math.min(0.75, rot);
+  return (unlocked.trueEnd || watcherDefeated) ? 0.75 : 0.0;
 }
 
 // ==================== PROCEDURAL FOREST & REALM AUDIO ENGINE ====================
@@ -784,12 +780,10 @@ function checkForbiddenFruitSpawn() {
   unlocked = JSON.parse(localStorage.getItem("eden_abyss_endings")) || unlocked;
   forbiddenFruit.active = allBaseEndingsUnlocked();
   if (!isUpsideDown && !gameOver) {
-    if (unlocked.trueEnd) {
+    if (unlocked.trueEnd || watcherDefeated) {
       setLore("You wear the Watcher's rings now. The grass beneath your feet withers at your presence.");
     } else if (forbiddenFruit.active) {
       setLore("The three seals are remembered. A crimson fruit has fallen from the eastern tree...");
-    } else if (savedSealsCount > 0) {
-      setLore("The pasture feels dimmer than before. Ash clings to the roots of the trees.");
     }
   }
 }
@@ -947,26 +941,33 @@ function processCommand(cmd) {
       "AVAILABLE COMMANDS:\n" +
       " - crown: Toggles wearing the Watcher's Crown & rings\n" +
       " - reset: Wipes all unlocked endings and revives The Watcher\n" +
+      " - revive: Restores The Watcher so you can fight/consume it again\n" +
       " - abyss: Instantly triggers the standard Abyss realm\n" +
       " - trueabyss: Instantly triggers the Bottomless Pit\n" +
-      " - flee: Instantly triggers the True Ending Chase Phase\n" +
+      " - flee: Triggers the True Ending Chase Phase (if Watcher is not yet consumed)\n" +
       " - unlockall: Unlocks the 3 base seals & spawns the Crimson Fruit\n" +
       " - godmode: Toggles invulnerability against The Watcher\n" +
       " - speed <val>: Sets player speed (default: 360)\n" +
       " - teleport: Warps player to a safe random location\n" +
       " - clear: Clears console terminal log"
     );
+  } else if (baseCmd === "revive") {
+    setWatcherDefeated(false);
+    unlocked.trueEnd = false;
+    localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
+    updateSigilHUD();
+    logToConsole("[SYS]: The Watcher has been restored.");
   } else if (baseCmd === "crown") {
     unlocked.trueEnd = !unlocked.trueEnd;
     localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
     updateSigilHUD();
     if (!isUpsideDown && !gameOver) {
       const rot = getEdenRotLevel();
-      realmText.innerText = unlocked.trueEnd ? "REALM: CORRUPTED GROVE" : "REALM: EDEN'S GROVE";
+      realmText.innerText = rot > 0 ? "REALM: CORRUPTED GROVE" : "REALM: EDEN'S GROVE";
       realmText.style.color = rot > 0.45 ? "#d4a373" : "#a8e6cf";
       loreBox.style.background = rot > 0.45 ? "#1c1614" : "#161a23";
       loreBox.style.borderLeft = rot > 0.45 ? "4px solid #8d6e63" : "4px solid #558b2f";
-      if (unlocked.trueEnd) {
+      if (rot > 0) {
         setLore("You wear the Watcher's rings now. The grass beneath your feet withers at your presence.");
       } else {
         setLore('"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."');
@@ -989,19 +990,22 @@ function processCommand(cmd) {
     toggleConsole();
   } else if (baseCmd === "trueabyss") {
     triggerUpsideDown(true);
-    logToConsole(`[SYS]: Forced entry into Bottomless Pit (${watcherDefeated ? "Watcher defeated" : "Watcher active"}).`);
+    logToConsole(`[SYS]: Forced entry into Bottomless Pit (${watcherDefeated ? "Watcher consumed - absent" : "Watcher active"}).`);
     toggleConsole();
   } else if (baseCmd === "flee") {
-    setWatcherDefeated(false);
     triggerUpsideDown(true);
-    isWatcherFleeing = true;
-    fleeGraceTimer = 0.2;
-    watcher.baseSpeed = 240;
-    scoreTextTop.innerText = "CONSUME THE WATCHER";
-    scoreTextBottom.innerText = "";
-    scoreTextTop.style.color = "#ffffff";
-    setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
-    logToConsole("[SYS]: Forced True Ending Hunt Phase.");
+    if (!watcherConsumed) {
+      isWatcherFleeing = true;
+      fleeGraceTimer = 0.2;
+      watcher.baseSpeed = 240;
+      scoreTextTop.innerText = "CONSUME THE WATCHER";
+      scoreTextBottom.innerText = "";
+      scoreTextTop.style.color = "#ffffff";
+      setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
+      logToConsole("[SYS]: Forced True Ending Hunt Phase.");
+    } else {
+      logToConsole("[SYS]: The Watcher has already been consumed. Use 'revive' or 'reset' to fight it again.");
+    }
     toggleConsole();
   } else if (baseCmd === "unlockall") {
     unlocked.eden = true;
@@ -1143,6 +1147,10 @@ function spawnPhantomItem() {
 function triggerUpsideDown(trueMode = false) {
   isUpsideDown = true;
   isTrueAbyss = trueMode;
+  gameOver = false;
+  won = false;
+  edenWon = false;
+  trueWon = false;
   watcherConsumed = watcherDefeated;
   targetSeals = trueMode ? 9 : 6;
   shakeTime = trueMode ? 70 : 45;
@@ -1166,8 +1174,8 @@ function triggerUpsideDown(trueMode = false) {
   
   realmText.innerText = trueMode ? "REALM: THE BOTTOMLESS PIT" : "REALM: SHEOL // THE ABYSS";
   realmText.style.color = "#ff2a2a";
-  scoreTextTop.innerText = `SEALS BROKEN: ${eyesCollected}`;
-  scoreTextBottom.innerText = `/ ${targetSeals}`;
+  scoreTextTop.innerText = watcherConsumed ? "WATCHER CONSUMED" : `SEALS BROKEN: ${eyesCollected}`;
+  scoreTextBottom.innerText = watcherConsumed ? "" : `/ ${targetSeals}`;
   scoreTextTop.style.color = "#ff2a2a";
   
   loreBox.style.background = "#1a0505";
@@ -1238,7 +1246,7 @@ function resetGame() {
   checkForbiddenFruitSpawn();
   
   const rot = getEdenRotLevel();
-  realmText.innerText = unlocked.trueEnd ? "REALM: CORRUPTED GROVE" : "REALM: EDEN'S GROVE";
+  realmText.innerText = rot > 0 ? "REALM: CORRUPTED GROVE" : "REALM: EDEN'S GROVE";
   realmText.style.color = rot > 0.45 ? "#d4a373" : "#a8e6cf";
   scoreTextTop.innerText = `FRUITS GATHERED: ${score}`;
   scoreTextBottom.innerText = `/ 20`;
@@ -1247,7 +1255,7 @@ function resetGame() {
   loreBox.style.background = rot > 0.45 ? "#1c1614" : "#161a23";
   loreBox.style.borderLeft = rot > 0.45 ? "4px solid #8d6e63" : "4px solid #558b2f";
   loreBox.style.color = "#e0e0e0";
-  if (!forbiddenFruit.active && savedSealsCount === 0 && !unlocked.trueEnd) {
+  if (!forbiddenFruit.active && rot === 0) {
     setLore('"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."');
   }
   
@@ -1490,7 +1498,9 @@ function update(dt) {
 
       eyesCollected++;
       recordSealCollected();
-      scoreTextTop.innerText = `SEALS BROKEN: ${eyesCollected}`;
+      if (!watcherConsumed) {
+        scoreTextTop.innerText = `SEALS BROKEN: ${eyesCollected}`;
+      }
       setLore(abyssLore[Math.min(eyesCollected - 1, abyssLore.length - 1)]);
       
       watcher.baseSpeed += isTrueAbyss ? 16 : 20;
