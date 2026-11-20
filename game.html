@@ -329,9 +329,9 @@ function lerpColor(hexA, hexB, t) {
 
 // Calculates how rotten Eden is (0.0 = pristine green, up to ~0.75 = withered/infected)
 function getEdenRotLevel() {
-  let rot = Math.min(savedSealsCount, 9) * 0.055; // Up to 0.495 from 9 seals
+  let rot = Math.min(savedSealsCount, 9) * 0.055;
   if (unlocked.trueEnd) {
-    rot = Math.max(rot, 0.55) + 0.15; // Wearing the crown visibly infects Eden (0.70)
+    rot = Math.max(rot, 0.55) + 0.15;
   }
   return Math.min(0.75, rot);
 }
@@ -433,7 +433,6 @@ function playBirdChirp() {
   if (!audioCtx || audioCtx.state !== "running" || isUpsideDown || gameOver) return;
   try {
     const rot = getEdenRotLevel();
-    // High rot makes birds rare and slightly detuned/warped
     if (Math.random() < rot * 0.7) return;
 
     const now = audioCtx.currentTime;
@@ -516,7 +515,6 @@ function updateAmbientSoundscape(proximity, isAbyss, isPit) {
   const rot = getEdenRotLevel();
 
   if (!isAbyss) {
-    // As rot grows, brook turns harsher/static-like and a faint abyss hum bleeds through
     brookGain.gain.setTargetAtTime(0.08 * (1 - rot * 0.35), now, 0.4);
     if (brookFilter) {
       brookFilter.frequency.setTargetAtTime(420 + rot * 950, now, 0.4);
@@ -524,7 +522,7 @@ function updateAmbientSoundscape(proximity, isAbyss, isPit) {
     }
     abyssDroneGain.gain.setTargetAtTime(rot * 0.22, now, 0.4);
     abyssOsc1.type = "triangle";
-    abyssOsc1.frequency.setTargetAtTime(55.0, now, 0.5);
+    abyssOsc1.frequency.setValueAtTime(55.0, now, 0.5);
 
     const perfNow = performance.now();
     if (perfNow >= nextBirdTime) {
@@ -536,17 +534,17 @@ function updateAmbientSoundscape(proximity, isAbyss, isPit) {
     abyssDroneGain.gain.setTargetAtTime(1.0, now, 0.4);
 
     abyssOsc1.type = "triangle";
-    abyssOsc1.frequency.setTargetAtTime(65.41 - (proximity * 15), now, 0.5);
+    abyssOsc1.frequency.setValueAtTime(65.41 - (proximity * 15), now, 0.5);
     abyssOsc2.type = "sawtooth";
-    abyssOsc2.frequency.setTargetAtTime(73.42 + (proximity * 25), now, 0.5);
+    abyssOsc2.frequency.setValueAtTime(73.42 + (proximity * 25), now, 0.5);
   } else {
     brookGain.gain.setTargetAtTime(0.0, now, 0.2);
     abyssDroneGain.gain.setTargetAtTime(1.15, now, 0.3);
 
     abyssOsc1.type = "sawtooth";
-    abyssOsc1.frequency.setTargetAtTime(55.00 + (proximity * 40), now, 0.2);
+    abyssOsc1.frequency.setValueAtTime(55.00 + (proximity * 40), now, 0.2);
     abyssOsc2.type = "square";
-    abyssOsc2.frequency.setTargetAtTime(82.41 + (proximity * 50), now, 0.2);
+    abyssOsc2.frequency.setValueAtTime(82.41 + (proximity * 50), now, 0.2);
   }
 }
 
@@ -559,7 +557,6 @@ function playEdenCollectSound() {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = rot > 0.5 ? "triangle" : "sine";
-      // Subtle dissonant detune when Eden is rotting
       const detunedFreq = freq * (1 - rot * 0.08 * (i === 1 ? -1 : 1));
       osc.frequency.setValueAtTime(detunedFreq, now + i * 0.05);
       gain.gain.setValueAtTime(0.12, now + i * 0.05);
@@ -737,7 +734,6 @@ let watcherJukeOffset = 1.0;
 let watcherTrail = [];
 let subliminalGlyphs = [];
 
-// Pre-generated static rot patches in Eden so they don't flicker randomly every frame
 const edenRotPatches = [
   { x: 95, y: 110, r: 22 },
   { x: 215, y: 85, r: 28 },
@@ -819,7 +815,6 @@ const watcher = {
   baseSpeed: 330
 };
 
-// 9 Unique Seal Lore Entries for the Codex
 const abyssSealCodexEntries = [
   "  - Seal I [Genesis 3:24]: The expulsion protocol. The flaming sword that blocks the return path.",
   "  - Seal II [Ezekiel 1:18]: The thousand-eyed wheels of the firewall. They never blink, scanning every tile.",
@@ -881,7 +876,6 @@ function toggleCodex() {
     manuscript += "      TORN MANUSCRIPT OF THE ARCHIVES    \n";
     manuscript += "========================================\n\n";
     
-    // Realm 1: Eden's Grove
     manuscript += "[ REALM I: EDEN'S GROVE // THE PASTORAL SANDBOX ]\n";
     if (unlocked.eden) {
       manuscript += "  'We walked upon carpets of seamless green, gathering sweet fruit under an unchanging sky. We thought this was creation itself—an endless loop of quiet grace. But the grass felt too soft, the horizon too abrupt. It was a cage woven from psalm and silence, keeping us blind to the machinery beneath.'\n\n";
@@ -889,7 +883,6 @@ function toggleCodex() {
       manuscript += "  * [ The parchment is blank here. Complete the 20-fruit harvest in Eden to unlock this realm's truth... ] *\n\n";
     }
 
-    // Realm 2: Sheol // The Abyss
     manuscript += "[ REALM II: SHEOL // THE ABYSS ]\n";
     if (unlocked.death || unlocked.revelation || savedSealsCount > 0) {
       manuscript += "  'To fall through the bleeding anomaly is to enter the basement of the simulation. Here, the green illusion drops away, revealing raw hex code and weeping darkness. The Watcher hunts all who trespass here.'\n";
@@ -907,7 +900,6 @@ function toggleCodex() {
       manuscript += "  * [ The text is charred and unreadable. Perish or explore the abyss to reveal the realm's secrets... ] *\n\n";
     }
 
-    // Realm 3: The Bottomless Pit
     manuscript += "[ REALM III: THE BOTTOMLESS PIT ]\n";
     if (unlocked.trueEnd || savedSealsCount > 6) {
       manuscript += "  'The deepest layer of all. Where rules break down entirely and the final crimson fruit ripens for those who conquered the lower dark.'\n";
@@ -924,7 +916,6 @@ function toggleCodex() {
       manuscript += "  * [ Sealed with a heavy wax stamp. Unlock the abyss seals and enter the pit to decode this realm... ] *\n\n";
     }
 
-    // Realm 4: The Eighth Day (True Ending) - Hidden until unlocked
     if (unlocked.trueEnd) {
       manuscript += "[ REALM IV: THE EIGHTH DAY // THE CROWN ]\n";
       manuscript += "  'And when the bottomless pit opened its jaws, we did not run. We hunted the watcher down. In consuming the core, the simulation collapsed into our hands. We hold the syntax. We are the architects now.'\n";
@@ -946,6 +937,7 @@ function processCommand(cmd) {
   if (baseCmd === "help") {
     logToConsole(
       "AVAILABLE COMMANDS:\n" +
+      " - crown: Toggles wearing the Watcher's Crown & rings\n" +
       " - reset: Wipes all unlocked endings and seal counts in localStorage\n" +
       " - abyss: Instantly triggers the standard Abyss realm\n" +
       " - trueabyss: Instantly triggers the Bottomless Pit\n" +
@@ -956,6 +948,23 @@ function processCommand(cmd) {
       " - teleport: Warps player to a safe random location\n" +
       " - clear: Clears console terminal log"
     );
+  } else if (baseCmd === "crown") {
+    unlocked.trueEnd = !unlocked.trueEnd;
+    localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
+    updateSigilHUD();
+    if (!isUpsideDown && !gameOver) {
+      const rot = getEdenRotLevel();
+      realmText.innerText = unlocked.trueEnd ? "REALM: CORRUPTED GROVE" : "REALM: EDEN'S GROVE";
+      realmText.style.color = rot > 0.45 ? "#d4a373" : "#a8e6cf";
+      loreBox.style.background = rot > 0.45 ? "#1c1614" : "#161a23";
+      loreBox.style.borderLeft = rot > 0.45 ? "4px solid #8d6e63" : "4px solid #558b2f";
+      if (unlocked.trueEnd) {
+        setLore("You wear the Watcher's rings now. The grass beneath your feet withers at your presence.");
+      } else {
+        setLore('"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."');
+      }
+    }
+    logToConsole(`[SYS]: Watcher's Crown is now ${unlocked.trueEnd ? "EQUIPPED" : "REMOVED"}.`);
   } else if (baseCmd === "reset") {
     localStorage.removeItem("eden_abyss_endings");
     localStorage.removeItem("eden_abyss_seals_count");
@@ -1232,11 +1241,9 @@ function checkCollision(ax, ay, aw, ah, bx, by, bw, bh) {
 }
 
 function drawTree(x, y, style = "round", rot = 0) {
-  // Trunk decays from warm brown to dead charcoal
   ctx.fillStyle = lerpColor("#2e1c0c", "#1a1412", rot);
   ctx.fillRect(x + 16, y + 22, 13, 20);
 
-  // Canopy withers from lush forest green to dead olive/ash
   ctx.fillStyle = lerpColor("#1b4d1b", "#3d3324", rot);
   if (style === "boxy") {
     ctx.fillRect(x + 5, y + 5, 35, 22);
@@ -1246,7 +1253,6 @@ function drawTree(x, y, style = "round", rot = 0) {
     ctx.fill();
   }
 
-  // Subtle dead branches / blight cracks when rot is high
   if (rot > 0.35) {
     ctx.strokeStyle = `rgba(20, 10, 10, ${(rot - 0.3) * 1.2})`;
     ctx.lineWidth = 1.5;
@@ -1259,21 +1265,57 @@ function drawTree(x, y, style = "round", rot = 0) {
   }
 }
 
-// Draws the rotating dual-square Watcher crown rings around the player when True Ending is unlocked
+// Upgraded multi-ring Watcher crown halo around the player
 function drawPlayerWatcherRings(px, py, psize) {
   if (!unlocked.trueEnd) return;
 
+  const cx = px + psize / 2;
+  const cy = py + psize / 2;
+  const pulse = Math.sin(glitchTimer * 0.12) * 1.5;
+
   ctx.save();
-  ctx.translate(px + psize / 2, py + psize / 2);
+  ctx.translate(cx, cy);
+
+  // Subtle crimson aura beneath the player
+  const aura = ctx.createRadialGradient(0, 0, 4, 0, 0, 24 + pulse);
+  aura.addColorStop(0, "rgba(255, 23, 68, 0.24)");
+  aura.addColorStop(1, "rgba(255, 23, 68, 0)");
+  ctx.fillStyle = aura;
+  ctx.beginPath();
+  ctx.arc(0, 0, 24 + pulse, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Outer rotating square cage
+  ctx.save();
   ctx.rotate(glitchTimer * 0.08);
+  ctx.strokeStyle = isUpsideDown ? "rgba(255, 23, 68, 0.92)" : "rgba(220, 38, 38, 0.85)";
+  ctx.lineWidth = 1.8;
+  ctx.strokeRect(-16, -16, 32, 32);
 
-  ctx.strokeStyle = isUpsideDown ? "rgba(255, 23, 68, 0.85)" : "rgba(211, 47, 47, 0.78)";
-  ctx.lineWidth = 1.6;
-  ctx.strokeRect(-14, -14, 28, 28);
+  // Corner node ticks on outer cage
+  ctx.fillStyle = "#ff1744";
+  const corners = [[-16, -16], [16, -16], [16, 16], [-16, 16]];
+  for (const [ox, oy] of corners) {
+    ctx.fillRect(ox - 2, oy - 2, 4, 4);
+  }
+  ctx.restore();
 
-  ctx.rotate(Math.PI / 4);
-  ctx.strokeStyle = isUpsideDown ? "rgba(255, 138, 128, 0.75)" : "rgba(183, 28, 28, 0.65)";
-  ctx.strokeRect(-14, -14, 28, 28);
+  // Counter-rotating diamond/inner ring
+  ctx.save();
+  ctx.rotate(-glitchTimer * 0.14 + Math.PI / 4);
+  ctx.strokeStyle = isUpsideDown ? "rgba(255, 255, 255, 0.72)" : "rgba(153, 27, 27, 0.75)";
+  ctx.lineWidth = 1.3;
+  ctx.strokeRect(-12.5, -12.5, 25, 25);
+  ctx.restore();
+
+  // Orbiting crimson eye-mote on a wider radius
+  const orbitAngle = glitchTimer * 0.1;
+  const moteX = Math.cos(orbitAngle) * 20;
+  const moteY = Math.sin(orbitAngle) * 20;
+  ctx.fillStyle = "#ff1744";
+  ctx.beginPath();
+  ctx.arc(moteX, moteY, 2.5, 0, Math.PI * 2);
+  ctx.fill();
 
   ctx.restore();
 }
@@ -1650,11 +1692,9 @@ function draw() {
     const isFlickering = flickerFrames > 0;
     const rot = getEdenRotLevel();
 
-    // Base grass shifts from lush #558b2f to sickly olive/ash #3c3a28 as rot increases
     ctx.fillStyle = isFlickering ? "#1c0303" : lerpColor("#558b2f", "#3c3a28", rot);
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw spreading soil/blight patches when Eden is rotting
     if (!isFlickering && rot > 0.05) {
       const visiblePatches = Math.ceil(edenRotPatches.length * (rot / 0.75));
       for (let i = 0; i < visiblePatches; i++) {
@@ -1666,7 +1706,6 @@ function draw() {
       }
     }
 
-    // Wildflowers wither from bright #fff59d to dead ash #594a3c
     ctx.fillStyle = isFlickering ? "#ff0000" : lerpColor("#fff59d", "#594a3c", rot);
     for (let i = 0; i < 10; i++) {
       ctx.fillRect((i * 59) % 580, (i * 83) % 380, 4, 4);
@@ -1684,7 +1723,6 @@ function draw() {
       
       ctx.translate((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
     } else {
-      // Fruits dull slightly in a rotting garden
       ctx.fillStyle = lerpColor("#ffd700", "#c99a2e", rot);
       ctx.beginPath();
       ctx.arc(item.x + 7, item.y + 7, 7, 0, Math.PI * 2);
@@ -1708,7 +1746,6 @@ function draw() {
       drawWatcher(anomaly.x - 15, anomaly.y - 10, 28);
     }
 
-    // Draw the Watcher's rotating geometric rings around the player if Crown ending is unlocked
     drawPlayerWatcherRings(player.x, player.y, player.size);
 
     ctx.fillStyle = godMode ? "#ffd700" : (isFlickering ? "#b0bec5" : "#ffffff");
@@ -1720,7 +1757,6 @@ function draw() {
       drawTree(tree.x, tree.y, tree.style, rot);
     }
 
-    // The anomaly tree is always slightly more decayed than the surrounding trees
     drawTree(anomaly.x, anomaly.y, anomaly.style, Math.min(1, rot + 0.25));
 
   } else {
@@ -1774,7 +1810,6 @@ function draw() {
       }
     }
 
-    // Draw the Watcher's rings around the player in the Abyss/Pit too if unlocked
     drawPlayerWatcherRings(player.x, player.y, player.size);
 
     ctx.fillStyle = isWatcherFleeing ? "#ff1744" : (godMode ? "#ffd700" : "#b0bec5");
