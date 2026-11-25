@@ -348,6 +348,11 @@ function hasCrownEquipped() {
   return Boolean(unlocked.trueEnd && watcherDefeated && !loopFate.brokeLoop);
 }
 
+// Empty Sheol and the door/sheep picking event require wearing the Watcher's Crown
+function isEmptySheolActive() {
+  return Boolean(isUpsideDown && watcherConsumed && hasCrownEquipped());
+}
+
 function triggerEasterEgg(eggId, options = {}) {
   const def = EASTER_EGG_REGISTRY[eggId];
   if (!def) return;
@@ -601,7 +606,7 @@ function updateAmbientSoundscape(proximity, isAbyss, isPit) {
       playBirdChirp();
       nextBirdTime = perfNow + 2200 + Math.random() * 3800;
     }
-  } else if (watcherDefeated) {
+  } else if (isEmptySheolActive()) {
     brookGain.gain.setTargetAtTime(0.0, now, 0.2);
     abyssDroneGain.gain.setTargetAtTime(loopFate.brokeLoop ? 0.05 : 0.32, now, 0.4);
     abyssOsc1.type = "triangle";
@@ -829,7 +834,7 @@ function updateSigilHUD() {
 
   if (loopFate.brokeLoop) {
     crownSigil.innerHTML = "<span style='color:#a8e6cf'>[UNBOUND]</span>";
-  } else if (loopFate.keptLoop && watcherDefeated) {
+  } else if (loopFate.keptLoop && hasCrownEquipped()) {
     crownSigil.innerHTML = "<span style='color:#ff5252'>[CYCLE]</span>";
   } else if (hasCrownEquipped()) {
     crownSigil.innerHTML = "<span style='color:#ff1744'>[CROWN]</span>";
@@ -951,7 +956,7 @@ const forbiddenFruit = {
 
 function checkForbiddenFruitSpawn() {
   unlocked = JSON.parse(localStorage.getItem("eden_abyss_endings")) || unlocked;
-  forbiddenFruit.active = allBaseEndingsUnlocked() && !watcherDefeated;
+  forbiddenFruit.active = allBaseEndingsUnlocked() && !hasCrownEquipped();
   if (!isUpsideDown && !gameOver) {
     if (loopFate.brokeLoop) {
       setLore("The rings are gone. The grove stands quiet—uncorrupted, unscripted, and still.");
@@ -1148,12 +1153,12 @@ function processCommand(cmd) {
   if (baseCmd === "help") {
     logToConsole(
       "AVAILABLE COMMANDS:\n" +
-      " - crown: Toggles wearing the Watcher's Crown & rings\n" +
+      " - crown: Toggles wearing the Watcher's Crown & rings (required for Empty Sheol)\n" +
       " - reset: Wipes all unlocked endings, fate, eggs, and revives The Watcher\n" +
       " - revive: Restores The Watcher so you can fight/consume it again\n" +
-      " - abyss: Instantly triggers the standard Abyss realm (or Empty Sheol if defeated)\n" +
-      " - trueabyss: Triggers the Bottomless Pit (or Empty Sheol if Watcher was consumed)\n" +
-      " - flee: Triggers the True Ending Chase Phase (if Watcher is not yet consumed)\n" +
+      " - abyss: Enters Sheol (Empty Sheol if Crown is worn, active hunt otherwise)\n" +
+      " - trueabyss: Triggers the Bottomless Pit (or Empty Sheol if Crown is worn)\n" +
+      " - flee: Triggers the True Ending Chase Phase (if Crown is not yet worn)\n" +
       " - unlockall: Unlocks the 3 base seals, restores The Watcher & spawns Crimson Fruit\n" +
       " - godmode: Toggles invulnerability against The Watcher\n" +
       " - speed <val>: Sets player speed (default: 360)\n" +
@@ -1168,7 +1173,7 @@ function processCommand(cmd) {
     updateSigilHUD();
     checkForbiddenFruitSpawn();
     syncEdenRealmDisplay();
-    logToConsole("[SYS]: The Watcher has been restored and loop fate cleared.");
+    logToConsole("[SYS]: The Watcher has been restored and Crown removed.");
   } else if (baseCmd === "crown") {
     const equipping = !hasCrownEquipped();
     unlocked.trueEnd = equipping;
@@ -1178,7 +1183,7 @@ function processCommand(cmd) {
     updateSigilHUD();
     checkForbiddenFruitSpawn();
     syncEdenRealmDisplay();
-    logToConsole(`[SYS]: Watcher's Crown is now ${equipping ? "EQUIPPED" : "REMOVED (Watcher restored)"}.`);
+    logToConsole(`[SYS]: Watcher's Crown is now ${equipping ? "EQUIPPED (Empty Sheol active)" : "REMOVED (Watcher active)"}.`);
   } else if (baseCmd === "reset") {
     localStorage.removeItem("eden_abyss_endings");
     localStorage.removeItem("eden_abyss_seals_count");
@@ -1195,19 +1200,22 @@ function processCommand(cmd) {
     logToConsole("[SYS]: All endings, fate, easter eggs, and The Watcher restored.");
   } else if (baseCmd === "abyss") {
     triggerUpsideDown(false);
-    logToConsole("[SYS]: Forced entry into Sheol // The Abyss.");
+    logToConsole(hasCrownEquipped()
+      ? "[SYS]: Crown equipped -> Entered Empty Sheol."
+      : "[SYS]: No Crown -> Forced entry into active Sheol // The Abyss.");
     toggleConsole();
   } else if (baseCmd === "trueabyss") {
-    if (watcherDefeated) {
+    if (hasCrownEquipped()) {
       triggerUpsideDown(false);
-      logToConsole("[SYS]: Bottomless Pit no longer exists after consuming The Watcher. Entered Empty Sheol instead.");
+      logToConsole("[SYS]: Crown equipped -> Entered Empty Sheol.");
     } else {
       triggerUpsideDown(true);
       logToConsole("[SYS]: Forced entry into Bottomless Pit.");
     }
     toggleConsole();
   } else if (baseCmd === "flee") {
-    if (!watcherDefeated) {
+    if (!hasCrownEquipped()) {
+      setWatcherDefeated(false);
       triggerUpsideDown(true);
       isWatcherFleeing = true;
       fleeGraceTimer = 0.2;
@@ -1218,13 +1226,14 @@ function processCommand(cmd) {
       setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
       logToConsole("[SYS]: Forced True Ending Hunt Phase.");
     } else {
-      logToConsole("[SYS]: The Watcher has already been consumed and the Bottomless Pit no longer exists. Use 'revive' or 'reset' to fight it again.");
+      logToConsole("[SYS]: You are already wearing the Watcher's Crown. Use 'crown' or 'revive' to fight it again.");
     }
     toggleConsole();
   } else if (baseCmd === "unlockall") {
     unlocked.eden = true;
     unlocked.death = true;
     unlocked.revelation = true;
+    unlocked.trueEnd = false;
     setWatcherDefeated(false);
     clearLoopFate();
     savedSealsCount = Math.max(savedSealsCount, 6);
@@ -1262,7 +1271,7 @@ function processCommand(cmd) {
         if (checkCollision(player.x, player.y, player.size, player.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
           valid = false;
         }
-      } else if (!watcherConsumed && Math.hypot(player.x - watcher.x, player.y - watcher.y) < 180) {
+      } else if (!isEmptySheolActive() && Math.hypot(player.x - watcher.x, player.y - watcher.y) < 180) {
         valid = false;
       }
       if (valid) break;
@@ -1333,7 +1342,7 @@ window.addEventListener("keyup", (e) => {
 });
 
 function spawnItem() {
-  if (isUpsideDown && watcherConsumed) return;
+  if (isEmptySheolActive()) return;
   let attempts = 0;
   while (attempts < 200) {
     attempts++;
@@ -1350,7 +1359,7 @@ function spawnItem() {
       if (checkCollision(item.x, item.y, item.size, item.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
         valid = false;
       }
-    } else if (!watcherConsumed) {
+    } else if (!isEmptySheolActive()) {
       if (Math.hypot(item.x - watcher.x, item.y - watcher.y) < 90) {
         valid = false;
       }
@@ -1370,9 +1379,11 @@ function spawnPhantomItem() {
 }
 
 function triggerUpsideDown(trueMode = false) {
-  watcherConsumed = watcherDefeated;
-  // Once the Watcher is consumed, the Bottomless Pit no longer exists; only Empty Sheol remains
-  const allowPit = trueMode && !watcherConsumed;
+  // Only enter Empty Sheol if the player actually has the Watcher's Crown equipped
+  const enterEmptySheol = hasCrownEquipped();
+  watcherConsumed = enterEmptySheol;
+  const allowPit = trueMode && !enterEmptySheol;
+
   isUpsideDown = true;
   isTrueAbyss = allowPit;
   gameOver = false;
@@ -1381,9 +1392,9 @@ function triggerUpsideDown(trueMode = false) {
   trueWon = false;
   brokeLoopEnding = false;
   keptLoopEnding = false;
-  targetSeals = watcherConsumed ? 0 : (allowPit ? 9 : 6);
-  shakeTime = watcherConsumed ? 18 : (allowPit ? 70 : 45);
-  watcherStunTimer = watcherConsumed ? 0 : 45;
+  targetSeals = enterEmptySheol ? 0 : (allowPit ? 9 : 6);
+  shakeTime = enterEmptySheol ? 18 : (allowPit ? 70 : 45);
+  watcherStunTimer = enterEmptySheol ? 0 : 45;
   score = 0;
   eyesCollected = 0;
   playerStillTimer = performance.now();
@@ -1420,23 +1431,23 @@ function triggerUpsideDown(trueMode = false) {
   watcher.y = 200;
   watcher.baseSpeed = allowPit ? 350 : 330;
   
-  realmText.innerText = watcherConsumed
+  realmText.innerText = enterEmptySheol
     ? "REALM: EMPTY SHEOL"
     : (allowPit ? "REALM: THE BOTTOMLESS PIT" : "REALM: SHEOL // THE ABYSS");
   realmText.style.color = "#ff2a2a";
-  scoreTextTop.innerText = watcherConsumed ? "EMPTY SHEOL" : `SEALS BROKEN: ${eyesCollected}`;
-  scoreTextBottom.innerText = watcherConsumed ? "" : `/ ${targetSeals}`;
+  scoreTextTop.innerText = enterEmptySheol ? "EMPTY SHEOL" : `SEALS BROKEN: ${eyesCollected}`;
+  scoreTextBottom.innerText = enterEmptySheol ? "" : `/ ${targetSeals}`;
   scoreTextTop.style.color = "#ff2a2a";
   
   loreBox.style.background = "#1a0505";
   loreBox.style.borderLeft = "4px solid #ff0000";
   loreBox.style.color = "#ff9999";
-  setLore(watcherConsumed
-    ? "THE DARKNESS ANSWERS TO YOUR RINGS NOW. A THRESHOLD PULSES ON THE FAR RIGHT."
+  setLore(enterEmptySheol
+    ? "THE DARKNESS ANSWERS TO YOUR CROWN NOW. A THRESHOLD PULSES ON THE FAR RIGHT."
     : (allowPit
       ? "YOU CONSUMED THE CORE OF KNOWLEDGE. THE ABYSS KNOWS YOUR NAME."
       : "YOU TOUCHED THE FORBIDDEN ROOT. THE SKY HAS ROLLED UP LIKE A SCROLL."));
-  if (!watcherConsumed) {
+  if (!enterEmptySheol) {
     spawnItem();
   }
 }
@@ -1471,7 +1482,7 @@ function resetGame() {
   trueWon = false;
   brokeLoopEnding = false;
   keptLoopEnding = false;
-  watcherConsumed = watcherDefeated;
+  watcherConsumed = hasCrownEquipped();
   score = 0;
   eyesCollected = 0;
   targetSeals = 6;
@@ -1600,7 +1611,7 @@ function drawEasterEggPulse() {
 
 // Geometric / minimalist threshold matching the game's crimson-and-dark Sheol aesthetic
 function drawSheolDoor() {
-  if (!isUpsideDown || !watcherConsumed) return;
+  if (!isEmptySheolActive()) return;
 
   const pulse = (Math.sin(glitchTimer * 0.08) + 1) / 2;
   const cx = sheolDoor.x + sheolDoor.width / 2;
@@ -1636,7 +1647,7 @@ function drawSheolDoor() {
 }
 
 function drawSheolSheep() {
-  if (!isUpsideDown || !watcherConsumed || !sheolSheep.active) return;
+  if (!isEmptySheolActive() || !sheolSheep.active) return;
 
   // Draw the scattered eye the sheep is trying to gather
   if (sheepEyeTarget.active) {
@@ -1676,7 +1687,7 @@ function updateSanityBorder() {
     return;
   }
 
-  if (watcherConsumed) {
+  if (isEmptySheolActive()) {
     const pulse = (Math.sin(glitchTimer * 0.08) + 1) / 2;
     canvas.style.borderColor = `rgba(185, 20, 20, ${0.65 + pulse * 0.25})`;
     canvas.style.boxShadow = `0 0 ${18 + pulse * 10}px rgba(175, 0, 0, ${(0.35 + pulse * 0.2).toFixed(2)})`;
@@ -1707,14 +1718,14 @@ function updateSanityBorder() {
 }
 
 function updateEmptySheolCinematic(dt) {
-  if (!isUpsideDown || !watcherConsumed || gameOver) return;
+  if (!isEmptySheolActive() || gameOver) return;
 
   const distToDoor = Math.hypot(
     (player.x + player.size / 2) - (sheolDoor.x + sheolDoor.width / 2),
     (player.y + player.size / 2) - (sheolDoor.y + sheolDoor.height / 2)
   );
 
-  // Trigger stun cinematic when approaching the door on the right
+  // Trigger stun cinematic when approaching the door on the right while wearing the Crown
   if (!doorCinematicPlayed && !doorCinematicActive && !sheepChoiceReady && distToDoor < 90) {
     doorCinematicPlayed = true;
     doorCinematicActive = true;
@@ -1778,7 +1789,6 @@ function updateEmptySheolCinematic(dt) {
         const dy = sheepEyeTarget.y - sheolSheep.y;
         const dist = Math.hypot(dx, dy);
         if (dist > 4) {
-          // Slow/hesitant gather pace ("kinda noob") while collecting eyes
           const gatherSpeed = 82;
           sheolSheep.x += (dx / dist) * gatherSpeed * dt;
           sheolSheep.y += (dy / dist) * gatherSpeed * dt;
@@ -1830,10 +1840,11 @@ function updateEmptySheolCinematic(dt) {
     sheolSheep.active = false;
     sheepEyeTarget.active = false;
     unlocked.trueEnd = false;
+    setWatcherDefeated(false);
     localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
     saveLoopFate("brokeLoop");
     playDoorStepSound();
-    setLore("You stepped through the threshold and left the sheep to its own path. The rings shatter and the loop breaks.");
+    setLore("You stepped through the threshold and left the sheep to its own path. The crown shatters and the loop breaks.");
     gameOver = true;
     shakeTime = 18;
   }
@@ -1858,8 +1869,10 @@ function update(dt) {
   }
   if (gameOver) return;
 
-  if (isUpsideDown && Math.random() < (watcherConsumed ? 0.025 : 0.04)) {
-    const texts = watcherConsumed
+  const emptySheol = isEmptySheolActive();
+
+  if (isUpsideDown && Math.random() < (emptySheol ? 0.025 : 0.04)) {
+    const texts = emptySheol
       ? ["0x7FFF", "THRONE_EMPTY", "UNBOUND?", "SHEOL", "WATCHING"]
       : ["0x7FFF", "ABANDON", "SEAL_BROKEN", "NULL_PTR", "WATCHED", "SHEOL"];
     subliminalGlyphs.push({
@@ -1874,7 +1887,7 @@ function update(dt) {
     if (subliminalGlyphs[i].life <= 0) subliminalGlyphs.splice(i, 1);
   }
 
-  if (!isUpsideDown && !watcherConsumed && score >= 8 && flickerFrames <= 0 && flickerCooldown <= 0) {
+  if (!isUpsideDown && !hasCrownEquipped() && score >= 8 && flickerFrames <= 0 && flickerCooldown <= 0) {
     if (Math.random() < 0.035 * dt) {
       if (!hasFlickeredBefore) {
         flickerFrames = 2;
@@ -1947,7 +1960,7 @@ function update(dt) {
       loreBox.style.fontStyle = "normal";
       loreBox.innerText = savedLoreText;
     }
-  } else if (!doorCinematicActive && !(isUpsideDown && watcherConsumed)) {
+  } else if (!doorCinematicActive && !emptySheol) {
     if (!isWhispering && (performance.now() - playerStillTimer > 10000)) {
       isWhispering = true;
       const pool = isUpsideDown ? abyssWhispers : edenWhispers;
@@ -1969,7 +1982,7 @@ function update(dt) {
     }
   }
 
-  if (isUpsideDown && watcherConsumed) {
+  if (emptySheol) {
     updateEmptySheolCinematic(dt);
     updateSanityBorder();
     glitchTimer += dt * 60;
@@ -2134,6 +2147,7 @@ function update(dt) {
       watcher.x, watcher.y, watcher.size, watcher.size
     )) {
       setWatcherDefeated(true);
+      clearLoopFate();
       isWatcherFleeing = false;
       watcherTrail = [];
       playTrueEndingSound();
@@ -2162,7 +2176,7 @@ function update(dt) {
 }
 
 function drawWatcher(wx, wy, wsize, fleeing = false) {
-  if (watcherConsumed) return;
+  if (isEmptySheolActive()) return;
 
   if (fleeing) {
     for (let t of watcherTrail) {
@@ -2207,7 +2221,7 @@ function draw() {
   }
 
   if (!isUpsideDown) {
-    const isFlickering = !watcherConsumed && flickerFrames > 0;
+    const isFlickering = !hasCrownEquipped() && flickerFrames > 0;
     const rot = getEdenRotLevel();
 
     ctx.fillStyle = isFlickering ? "#1c0303" : lerpColor("#558b2f", "#3c3a28", rot);
@@ -2262,7 +2276,7 @@ function draw() {
       ctx.fill();
     }
 
-    if (isFlickering && !watcherConsumed) {
+    if (isFlickering && !hasCrownEquipped()) {
       drawWatcher(anomaly.x - 15, anomaly.y - 10, 28);
     }
 
@@ -2280,6 +2294,8 @@ function draw() {
     drawTree(anomaly.x, anomaly.y, anomaly.style, Math.min(1, rot + 0.25));
 
   } else {
+    const emptySheol = isEmptySheolActive();
+
     // Same dark crimson Sheol aesthetic in both active Sheol and Empty Sheol
     ctx.fillStyle = isTrueAbyss ? "#050000" : "#090202";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -2304,7 +2320,7 @@ function draw() {
       ctx.fillRect(0, Math.random() * canvas.height, canvas.width, 4);
     }
 
-    if (!watcherConsumed) {
+    if (!emptySheol) {
       if (watcherStunTimer > 28) {
         ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -2341,10 +2357,10 @@ function draw() {
     ctx.fillStyle = isWatcherFleeing ? "#ff1744" : (godMode ? "#ffd700" : (doorCinematicActive ? "#ff8a80" : "#b0bec5"));
     ctx.fillRect(player.x, player.y, player.size, player.size);
 
-    if (!watcherConsumed) {
+    if (!emptySheol) {
       drawWatcher(watcher.x, watcher.y, watcher.size, isWatcherFleeing);
 
-      // Vision is only limited before you consume the Watcher
+      // Vision is only limited when not wearing the Watcher's Crown
       const visionRadius = isWatcherFleeing ? 260 : (isTrueAbyss ? 175 : 210);
       const gradient = ctx.createRadialGradient(
         player.x + 10, player.y + 10, 35,
@@ -2369,7 +2385,7 @@ function draw() {
       ctx.fillStyle = "#e0e0e0";
       ctx.font = "12px Courier New";
       ctx.fillText("You walked through the threshold and left the sheep behind.", canvas.width / 2, 174);
-      ctx.fillText("The rings fell away. Nothing waits in the dark to replace you.", canvas.width / 2, 198);
+      ctx.fillText("The crown fell away. Nothing waits in the dark to replace you.", canvas.width / 2, 198);
       ctx.fillStyle = "#888888";
       ctx.font = "12px Courier New";
       ctx.fillText("Press [R] to step back into the quiet.", canvas.width / 2, 245);
@@ -2423,7 +2439,7 @@ function draw() {
       ctx.fillStyle = "#a8e6cf";
       ctx.font = "11px Courier New";
       ctx.fillText("memory_addr: 0x7fff5fbff800 -- status: WATCHER CONSUMED", canvas.width / 2, 165);
-      ctx.fillText("You wear its rings now. Return to Eden or Sheol and see what remains.", canvas.width / 2, 195);
+      ctx.fillText("You wear its crown now. Return to Eden or Sheol and see what remains.", canvas.width / 2, 195);
       
       ctx.fillStyle = "#888888";
       ctx.font = "12px Courier New";
