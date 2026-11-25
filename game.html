@@ -865,8 +865,6 @@ let won = false;
 let edenWon = false;
 let crownedHarvestWon = false;
 let trueWon = false;
-let brokeLoopEnding = false;
-let keptLoopEnding = false;
 let watcherConsumed = watcherDefeated;
 let score = 0;
 let eyesCollected = 0;
@@ -1392,8 +1390,6 @@ function triggerUpsideDown(trueMode = false) {
   edenWon = false;
   crownedHarvestWon = false;
   trueWon = false;
-  brokeLoopEnding = false;
-  keptLoopEnding = false;
   targetSeals = enterEmptySheol ? 0 : (allowPit ? 9 : 6);
   shakeTime = enterEmptySheol ? 18 : (allowPit ? 70 : 45);
   watcherStunTimer = enterEmptySheol ? 0 : 45;
@@ -1484,8 +1480,6 @@ function resetGame() {
   edenWon = false;
   crownedHarvestWon = false;
   trueWon = false;
-  brokeLoopEnding = false;
-  keptLoopEnding = false;
   watcherConsumed = hasCrownEquipped();
   score = 0;
   eyesCollected = 0;
@@ -1541,6 +1535,7 @@ function resetGame() {
   loreBox.style.background = rot > 0.45 ? "#1c1614" : "#161a23";
   loreBox.style.borderLeft = rot > 0.45 ? "4px solid #8d6e63" : "4px solid #558b2f";
   loreBox.style.color = "#e0e0e0";
+  loreBox.style.fontStyle = "normal";
   if (!forbiddenFruit.active && rot === 0) {
     setLore(loopFate.brokeLoop
       ? "The rings are gone. The grove stands quiet—uncorrupted, unscripted, and still."
@@ -1802,40 +1797,28 @@ function updateEmptySheolCinematic(dt) {
   }
 
   if (sheepChoiceReady && sheolSheep.active) {
-    if (!keptLoopEnding && checkCollision(
+    if (checkCollision(
       player.x, player.y, player.size, player.size,
       sheolSheep.x, sheolSheep.y, sheolSheep.size, sheolSheep.size
     )) {
-      keptLoopEnding = true;
-      sheepChoiceReady = false;
-      sheolSheep.active = false;
-      sheepEyeTarget.active = false;
       setWatcherDefeated(true);
       saveLoopFate("keptLoop");
       saveEnding("trueEnd");
       playTrueEndingSound();
-      setLore("TRUE ENDING [CYCLE KEPT] — 'You chased down the sheep and claimed the turning wheel once more.' Press [R] to begin a new run.");
-      gameOver = true;
-      shakeTime = 45;
+      resetGame();
       return;
     }
   }
 
-  if (!brokeLoopEnding && checkCollision(
+  if (checkCollision(
     player.x, player.y, player.size, player.size,
     sheolDoor.x, sheolDoor.y, sheolDoor.width, sheolDoor.height
   )) {
-    brokeLoopEnding = true;
-    sheepChoiceReady = false;
-    sheolSheep.active = false;
-    sheepEyeTarget.active = false;
     setWatcherDefeated(false);
     saveLoopFate("brokeLoop");
     saveEnding("trueEnd");
     playDoorStepSound();
-    setLore("TRUE ENDING [CYCLE BROKEN] — 'You stepped through the threshold and left the sheep unbound.' Press [R] to begin a new run.");
-    gameOver = true;
-    shakeTime = 18;
+    resetGame();
   }
 }
 
@@ -2357,33 +2340,7 @@ function draw() {
   if (gameOver) {
     ctx.textAlign = "center";
 
-    if (brokeLoopEnding) {
-      ctx.fillStyle = "rgba(10, 14, 16, 0.94)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#a8e6cf";
-      ctx.font = "bold 19px Courier New";
-      ctx.fillText("[TRUE ENDING // CYCLE BROKEN]", canvas.width / 2, 138);
-      ctx.fillStyle = "#e0e0e0";
-      ctx.font = "12px Courier New";
-      ctx.fillText("You stepped through the threshold and left the sheep behind.", canvas.width / 2, 174);
-      ctx.fillText("The crown fell away. Nothing waits in the dark to replace you.", canvas.width / 2, 198);
-      ctx.fillStyle = "#888888";
-      ctx.font = "12px Courier New";
-      ctx.fillText("Press [R] to begin a new run.", canvas.width / 2, 245);
-    } else if (keptLoopEnding) {
-      ctx.fillStyle = "rgba(18, 4, 6, 0.95)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#ff5252";
-      ctx.font = "bold 19px Courier New";
-      ctx.fillText("[TRUE ENDING // CYCLE KEPT]", canvas.width / 2, 138);
-      ctx.fillStyle = "#e0cfc2";
-      ctx.font = "12px Courier New";
-      ctx.fillText("You chased down the sheep instead of the threshold.", canvas.width / 2, 174);
-      ctx.fillText("The cycle turns once more—and another sheep will follow.", canvas.width / 2, 198);
-      ctx.fillStyle = "#888888";
-      ctx.font = "12px Courier New";
-      ctx.fillText("Press [R] to begin a new run.", canvas.width / 2, 245);
-    } else if (crownedHarvestWon) {
+    if (crownedHarvestWon) {
       ctx.fillStyle = "rgba(24, 18, 14, 0.94)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#ffd700";
