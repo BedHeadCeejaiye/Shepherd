@@ -166,6 +166,12 @@
     justify-content: space-between;
     letter-spacing: 1px;
   }
+  #codex-body {
+    flex-grow: 1;
+    display: flex;
+    gap: 10px;
+    overflow: hidden;
+  }
   #codex-content {
     flex-grow: 1;
     overflow-y: auto;
@@ -181,6 +187,34 @@
   #codex-content::-webkit-scrollbar-thumb {
     background: #5c4033;
     border-radius: 3px;
+  }
+  /* Unlabeled side margin strip on the parchment */
+  #codex-margin {
+    width: 46px;
+    flex-shrink: 0;
+    border-left: 1px dashed #3e2b22;
+    padding-left: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    padding-top: 4px;
+  }
+  .margin-notch {
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: #4a372d;
+    padding: 3px 4px;
+    border: 1px solid #2b201a;
+    background: rgba(10, 8, 7, 0.55);
+    transition: all 0.25s ease;
+  }
+  .margin-notch.unlocked {
+    color: #ffd700;
+    border-color: #8c6d1f;
+    background: rgba(255, 215, 0, 0.08);
+    text-shadow: 0 0 6px rgba(255, 215, 0, 0.55);
   }
   #codex-footer {
     border-top: 1px dashed #5c4033;
@@ -272,7 +306,10 @@
         <span>~ TORN MANUSCRIPT OF THE ARCHIVES ~</span>
         <span style="cursor: pointer; color: #dda15e;" onclick="toggleCodex()">[CLOSE]</span>
       </div>
-      <div id="codex-content">Unraveling the parchment...</div>
+      <div id="codex-body">
+        <div id="codex-content">Unraveling the parchment...</div>
+        <div id="codex-margin"></div>
+      </div>
       <div id="codex-footer">Press [C] or click [CLOSE] to return to the path.</div>
     </div>
 
@@ -306,6 +343,7 @@ const volumeSlider = document.getElementById("volume-slider");
 
 const codexOverlay = document.getElementById("codex-overlay");
 const codexContent = document.getElementById("codex-content");
+const codexMargin = document.getElementById("codex-margin");
 
 const consoleOverlay = document.getElementById("console-overlay");
 const consoleLog = document.getElementById("console-log");
@@ -332,17 +370,28 @@ function clearLoopFate() {
   localStorage.setItem("eden_abyss_loop_fate", JSON.stringify(loopFate));
 }
 
-// ==================== EXPANDABLE EASTER EGG REGISTRY ====================
-let foundEasterEggs = JSON.parse(localStorage.getItem("eden_abyss_easter_eggs")) || {};
-let easterEggPulse = null; // { x, y, timer, color }
-
-const EASTER_EGG_REGISTRY = {
-  crowned_harvest: {
-    title: "THE CROWNED HARVEST",
-    codexEntry: "  'Even under a crown of eyes, each fifth fruit gathered in the decaying grove hummed like a forgotten chord—as if the garden was trying to remember what it was before the pit opened.'"
+// ==================== CODEX MARGIN NOTCHES (UNLABELED) ====================
+// Add future secret feats here; locked notches stay blank with zero explanation
+const CODEX_MARGIN_NOTCHES = [
+  {
+    key: "crownedHarvest",
+    unlockedHint: "Twenty fruits gathered beneath crimson rings."
   }
-  // Add future easter eggs here with a unique key, title, and codexEntry
-};
+];
+
+function renderCodexMargin() {
+  codexMargin.innerHTML = "";
+  for (const notch of CODEX_MARGIN_NOTCHES) {
+    const isUnlocked = Boolean(unlocked[notch.key]);
+    const el = document.createElement("div");
+    el.className = "margin-notch" + (isUnlocked ? " unlocked" : "");
+    el.textContent = isUnlocked ? "[*]" : "[ ]";
+    if (isUnlocked && notch.unlockedHint) {
+      el.title = notch.unlockedHint;
+    }
+    codexMargin.appendChild(el);
+  }
+}
 
 function hasCrownEquipped() {
   return Boolean(unlocked.trueEnd && watcherDefeated && !loopFate.brokeLoop);
@@ -351,48 +400,6 @@ function hasCrownEquipped() {
 // Empty Sheol and the door/sheep picking event require wearing the Watcher's Crown
 function isEmptySheolActive() {
   return Boolean(isUpsideDown && watcherConsumed && hasCrownEquipped());
-}
-
-function triggerEasterEgg(eggId, options = {}) {
-  const def = EASTER_EGG_REGISTRY[eggId];
-  if (!def) return;
-
-  if (!foundEasterEggs[eggId]) {
-    foundEasterEggs[eggId] = true;
-    localStorage.setItem("eden_abyss_easter_eggs", JSON.stringify(foundEasterEggs));
-  }
-
-  if (options.pulse) {
-    easterEggPulse = {
-      x: options.pulse.x,
-      y: options.pulse.y,
-      timer: 28,
-      color: options.pulse.color || "#ffd700"
-    };
-  }
-
-  if (options.lore) {
-    setLore(options.lore);
-  }
-}
-
-function checkCrownedFruitEasterEgg(fruitX, fruitY, currentScore) {
-  if (!hasCrownEquipped()) return false;
-  if (currentScore > 0 && currentScore % 5 === 0) {
-    const milestoneLines = {
-      5:  "EASTER EGG // [5/20]: A golden fruit splits with a hollow chime. The rot pauses for half a breath.",
-      10: "EASTER EGG // [10/20]: Half the harvest taken under crimson rings. Something old hums beneath the dirt.",
-      15: "EASTER EGG // [15/20]: The fruit tastes like morning light filtered through ash. Almost done.",
-      20: "EASTER EGG // [20/20]: All twenty gathered under the crown. Even the usurper hears a quiet echo."
-    };
-    playEasterEggChime();
-    triggerEasterEgg("crowned_harvest", {
-      pulse: { x: fruitX + 7, y: fruitY + 7, color: "#ffd700" },
-      lore: milestoneLines[currentScore] || `EASTER EGG // [${currentScore}/20]: The crown hums softly over the gathered fruit.`
-    });
-    return true;
-  }
-  return false;
 }
 
 // ==================== COLOR & ROT INTERPOLATION HELPERS ====================
@@ -653,25 +660,6 @@ function playEdenCollectSound() {
   } catch (e) {}
 }
 
-function playEasterEggChime() {
-  try {
-    unlockAudio();
-    const now = audioCtx.currentTime;
-    [587.33, 880.00].forEach((freq, i) => {
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq, now + i * 0.09);
-      gain.gain.setValueAtTime(0.09, now + i * 0.09);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.09 + 0.45);
-      osc.connect(gain);
-      gain.connect(masterGain);
-      osc.start(now + i * 0.09);
-      osc.stop(now + i * 0.09 + 0.46);
-    });
-  } catch (e) {}
-}
-
 function playAbyssCollectSound() {
   try {
     unlockAudio();
@@ -799,7 +787,8 @@ let unlocked = JSON.parse(localStorage.getItem("eden_abyss_endings")) || {
   eden: false,
   death: false,
   revelation: false,
-  trueEnd: false
+  trueEnd: false,
+  crownedHarvest: false
 };
 
 let savedSealsCount = parseInt(localStorage.getItem("eden_abyss_seals_count")) || 0;
@@ -809,6 +798,7 @@ function saveEnding(key) {
   unlocked[key] = true;
   localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
   updateSigilHUD();
+  if (codexOpen) renderCodexMargin();
 }
 
 function setWatcherDefeated(val) {
@@ -848,6 +838,7 @@ let isTrueAbyss = false;
 let gameOver = false;
 let won = false;
 let edenWon = false;
+let crownedHarvestWon = false;
 let trueWon = false;
 let brokeLoopEnding = false;
 let keptLoopEnding = false;
@@ -1111,15 +1102,8 @@ function toggleCodex() {
       manuscript += "  'A sheep entered Sheol, stumbling after scattered eyes and dodging your gaze just as you once did. The old hunger answered. You ran it down to claim what you once were, keeping the machinery turning.'\n\n";
     }
 
-    const discoveredEggKeys = Object.keys(EASTER_EGG_REGISTRY).filter((k) => foundEasterEggs[k]);
-    if (discoveredEggKeys.length > 0) {
-      manuscript += "[ MARGINALIA // DISCOVERED EASTER EGGS (" + discoveredEggKeys.length + "/" + Object.keys(EASTER_EGG_REGISTRY).length + ") ]\n";
-      for (const k of discoveredEggKeys) {
-        manuscript += "  * " + EASTER_EGG_REGISTRY[k].title + ":\n" + EASTER_EGG_REGISTRY[k].codexEntry + "\n\n";
-      }
-    }
-
     codexContent.innerText = manuscript;
+    renderCodexMargin();
     codexOverlay.style.display = "flex";
   } else {
     codexOverlay.style.display = "none";
@@ -1154,7 +1138,7 @@ function processCommand(cmd) {
     logToConsole(
       "AVAILABLE COMMANDS:\n" +
       " - crown: Toggles wearing the Watcher's Crown & rings (required for Empty Sheol)\n" +
-      " - reset: Wipes all unlocked endings, fate, eggs, and revives The Watcher\n" +
+      " - reset: Wipes all unlocked endings, fate, notches, and revives The Watcher\n" +
       " - revive: Restores The Watcher so you can fight/consume it again\n" +
       " - abyss: Enters Sheol (Empty Sheol if Crown is worn, active hunt otherwise)\n" +
       " - trueabyss: Triggers the Bottomless Pit (or Empty Sheol if Crown is worn)\n" +
@@ -1189,15 +1173,13 @@ function processCommand(cmd) {
     localStorage.removeItem("eden_abyss_seals_count");
     localStorage.removeItem("eden_abyss_watcher_consumed");
     localStorage.removeItem("eden_abyss_loop_fate");
-    localStorage.removeItem("eden_abyss_easter_eggs");
-    unlocked = { eden: false, death: false, revelation: false, trueEnd: false };
+    unlocked = { eden: false, death: false, revelation: false, trueEnd: false, crownedHarvest: false };
     loopFate = { brokeLoop: false, keptLoop: false };
-    foundEasterEggs = {};
     savedSealsCount = 0;
     setWatcherDefeated(false);
     updateSigilHUD();
     resetGame();
-    logToConsole("[SYS]: All endings, fate, easter eggs, and The Watcher restored.");
+    logToConsole("[SYS]: All endings, fate, margin notches, and The Watcher restored.");
   } else if (baseCmd === "abyss") {
     triggerUpsideDown(false);
     logToConsole(hasCrownEquipped()
@@ -1389,6 +1371,7 @@ function triggerUpsideDown(trueMode = false) {
   gameOver = false;
   won = false;
   edenWon = false;
+  crownedHarvestWon = false;
   trueWon = false;
   brokeLoopEnding = false;
   keptLoopEnding = false;
@@ -1408,7 +1391,6 @@ function triggerUpsideDown(trueMode = false) {
   watcherTrail = [];
   subliminalGlyphs = [];
   phantomItem.active = false;
-  easterEggPulse = null;
 
   doorCinematicPlayed = false;
   doorCinematicActive = false;
@@ -1479,6 +1461,7 @@ function resetGame() {
   gameOver = false;
   won = false;
   edenWon = false;
+  crownedHarvestWon = false;
   trueWon = false;
   brokeLoopEnding = false;
   keptLoopEnding = false;
@@ -1508,7 +1491,6 @@ function resetGame() {
   sheolSheep.evadeJukeTimer = 0;
   sheolSheep.evadeJukeDir = 1;
   sheepEyeTarget.active = false;
-  easterEggPulse = null;
   watcherJukeTimer = 0;
   watcherJukeOffset = 1.0;
   watcherTrail = [];
@@ -1590,22 +1572,6 @@ function drawPlayerWatcherRings(px, py, psize) {
   ctx.rotate(Math.PI / 4);
   ctx.strokeRect(-18, -18, 36, 36);
 
-  ctx.restore();
-}
-
-function drawEasterEggPulse() {
-  if (!easterEggPulse || easterEggPulse.timer <= 0) return;
-
-  const progress = 1 - (easterEggPulse.timer / 28);
-  const radius = 10 + progress * 34;
-  const alpha = (1 - progress) * 0.75;
-
-  ctx.save();
-  ctx.strokeStyle = `rgba(255, 215, 0, ${alpha.toFixed(2)})`;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(easterEggPulse.x, easterEggPulse.y, radius, 0, Math.PI * 2);
-  ctx.stroke();
   ctx.restore();
 }
 
@@ -1863,10 +1829,6 @@ function update(dt) {
   if (watcherStunTimer > 0) watcherStunTimer -= dt * 60;
   if (flickerCooldown > 0) flickerCooldown -= dt * 60;
   if (fleeGraceTimer > 0) fleeGraceTimer -= dt;
-  if (easterEggPulse && easterEggPulse.timer > 0) {
-    easterEggPulse.timer -= dt * 60;
-    if (easterEggPulse.timer <= 0) easterEggPulse = null;
-  }
   if (gameOver) return;
 
   const emptySheol = isEmptySheolActive();
@@ -1991,38 +1953,37 @@ function update(dt) {
 
   if (!isWatcherFleeing && checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
     if (!isUpsideDown) {
-      const collectedX = item.x;
-      const collectedY = item.y;
       playEdenCollectSound();
       score++;
       scoreTextTop.innerText = `FRUITS GATHERED: ${score}`;
-      const triggeredEgg = checkCrownedFruitEasterEgg(collectedX, collectedY, score);
 
-      if (!triggeredEgg) {
-        if (score === 5) {
-          setLore(loopFate.brokeLoop
-            ? "The grove is quiet beneath an open sky. Nothing stalks between the trees."
-            : (hasCrownEquipped()
-              ? "The golden fruits taste like static now. The grove recognizes its usurper."
-              : "Deep in the woods, the shadows grow long. Something feels different near the eastern edge."));
-        } else if (score === 12) {
-          setLore(loopFate.brokeLoop
-            ? "Every leaf settles without haste. The old harvest no longer binds you."
-            : (hasCrownEquipped()
-              ? "Even the eastern tree trembles when the Watcher's rings pass by."
-              : "You remain faithful to the harvest, ignoring the strange pull from the east."));
-        }
+      if (score === 5) {
+        setLore(loopFate.brokeLoop
+          ? "The grove is quiet beneath an open sky. Nothing stalks between the trees."
+          : (hasCrownEquipped()
+            ? "The golden fruits taste like static now. The grove recognizes its usurper."
+            : "Deep in the woods, the shadows grow long. Something feels different near the eastern edge."));
+      } else if (score === 12) {
+        setLore(loopFate.brokeLoop
+          ? "Every leaf settles without haste. The old harvest no longer binds you."
+          : (hasCrownEquipped()
+            ? "Even the eastern tree trembles when the Watcher's rings pass by."
+            : "You remain faithful to the harvest, ignoring the strange pull from the east."));
       }
       
       if (score >= 20) {
         gameOver = true;
-        edenWon = true;
-        saveEnding("eden");
-        setLore(loopFate.brokeLoop
-          ? "A QUIET HARVEST — 'You gathered the fruit in a world no longer bound to a script.'"
-          : (hasCrownEquipped()
-            ? "THE USURPER'S HARVEST — 'You tended a dying garden wearing the crown of the abyss.'"
-            : "MATTHEW 25:21 — 'Well done, good and faithful servant. Enter into the joy of your master.'"));
+        if (hasCrownEquipped()) {
+          crownedHarvestWon = true;
+          saveEnding("crownedHarvest");
+          setLore("THE CROWNED HARVEST — 'Twenty fruits taken beneath crimson rings. Even a dying garden remembers its first seed.'");
+        } else {
+          edenWon = true;
+          saveEnding("eden");
+          setLore(loopFate.brokeLoop
+            ? "A QUIET HARVEST — 'You gathered the fruit in a world no longer bound to a script.'"
+            : "MATTHEW 25:21 — 'Well done, good and faithful servant. Enter into the joy of your master.'");
+        }
       } else {
         spawnItem();
       }
@@ -2243,8 +2204,6 @@ function draw() {
       ctx.fillRect((i * 59) % 580, (i * 83) % 380, 4, 4);
     }
 
-    drawEasterEggPulse();
-
     if (isFlickering) {
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
@@ -2402,23 +2361,29 @@ function draw() {
       ctx.fillStyle = "#888888";
       ctx.font = "12px Courier New";
       ctx.fillText("Press [R] to re-enter the turning wheel.", canvas.width / 2, 245);
-    } else if (edenWon) {
-      const corruptedEden = hasCrownEquipped();
-      ctx.fillStyle = corruptedEden ? "rgba(35, 25, 22, 0.92)" : "rgba(255, 248, 220, 0.90)";
+    } else if (crownedHarvestWon) {
+      ctx.fillStyle = "rgba(24, 18, 14, 0.94)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = corruptedEden ? "#ff5252" : "#2e7d32";
+      ctx.fillStyle = "#ffd700";
+      ctx.font = "bold 20px Courier New";
+      ctx.fillText("[THE CROWNED HARVEST // ASHES REMEMBERED]", canvas.width / 2, 145);
+      ctx.fillStyle = "#d4a373";
+      ctx.font = "12px Courier New";
+      ctx.fillText("You gathered every fruit while wearing the Watcher's rings.", canvas.width / 2, 182);
+      ctx.fillText("Beneath the rot, the garden's first memory still answered.", canvas.width / 2, 204);
+      ctx.fillStyle = "#888888";
+      ctx.font = "12px Courier New";
+      ctx.fillText("Press [R] to walk the grove again.", canvas.width / 2, 245);
+    } else if (edenWon) {
+      ctx.fillStyle = "rgba(255, 248, 220, 0.90)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#2e7d32";
       ctx.font = "bold 22px Courier New";
-      ctx.fillText(corruptedEden ? "THE CROWNED SHEPHERD" : "THE OBEDIENT SHEPHERD", canvas.width / 2, 150);
-      ctx.fillStyle = corruptedEden ? "#d4a373" : "#333333";
+      ctx.fillText("THE OBEDIENT SHEPHERD", canvas.width / 2, 150);
+      ctx.fillStyle = "#333333";
       ctx.font = "13px Courier New";
-      ctx.fillText(
-        corruptedEden
-          ? "You harvested the ash of a garden that now fears you."
-          : "You tended the grove in peace and resisted temptation.",
-        canvas.width / 2,
-        185
-      );
-      ctx.fillStyle = corruptedEden ? "#888888" : "#666666";
+      ctx.fillText("You tended the grove in peace and resisted temptation.", canvas.width / 2, 185);
+      ctx.fillStyle = "#666666";
       ctx.font = "12px Courier New";
       ctx.fillText(loopFate.brokeLoop ? "Press [R] to tend the quiet grove again." : "Press [R] to replay... but something feels off.", canvas.width / 2, 235);
     } else if (trueWon) {
