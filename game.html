@@ -326,6 +326,64 @@ function saveLoopFate(key) {
   updateSigilHUD();
 }
 
+// ==================== EXPANDABLE EASTER EGG REGISTRY ====================
+let foundEasterEggs = JSON.parse(localStorage.getItem("eden_abyss_easter_eggs")) || {};
+let easterEggPulse = null; // { x, y, timer, color }
+
+const EASTER_EGG_REGISTRY = {
+  crowned_harvest: {
+    title: "THE CROWNED HARVEST",
+    codexEntry: "  'Even under a crown of eyes, each fifth fruit gathered in the decaying grove hummed like a forgotten chord—as if the garden was trying to remember what it was before the pit opened.'"
+  }
+  // Add future easter eggs here with a unique key, title, and codexEntry
+};
+
+function hasCrownEquipped() {
+  return Boolean(unlocked.trueEnd && !loopFate.brokeLoop);
+}
+
+function triggerEasterEgg(eggId, options = {}) {
+  const def = EASTER_EGG_REGISTRY[eggId];
+  if (!def) return;
+
+  if (!foundEasterEggs[eggId]) {
+    foundEasterEggs[eggId] = true;
+    localStorage.setItem("eden_abyss_easter_eggs", JSON.stringify(foundEasterEggs));
+  }
+
+  if (options.pulse) {
+    easterEggPulse = {
+      x: options.pulse.x,
+      y: options.pulse.y,
+      timer: 28,
+      color: options.pulse.color || "#ffd700"
+    };
+  }
+
+  if (options.lore) {
+    setLore(options.lore);
+  }
+}
+
+function checkCrownedFruitEasterEgg(fruitX, fruitY, currentScore) {
+  if (!hasCrownEquipped()) return false;
+  if (currentScore > 0 && currentScore % 5 === 0) {
+    const milestoneLines = {
+      5:  "EASTER EGG // [5/20]: A golden fruit splits with a hollow chime. The rot pauses for half a breath.",
+      10: "EASTER EGG // [10/20]: Half the harvest taken under crimson rings. Something old hums beneath the dirt.",
+      15: "EASTER EGG // [15/20]: The fruit tastes like morning light filtered through ash. Almost done.",
+      20: "EASTER EGG // [20/20]: All twenty gathered under the crown. Even the usurper hears a quiet echo."
+    };
+    playEasterEggChime();
+    triggerEasterEgg("crowned_harvest", {
+      pulse: { x: fruitX + 7, y: fruitY + 7, color: "#ffd700" },
+      lore: milestoneLines[currentScore] || `EASTER EGG // [${currentScore}/20]: The crown hums softly over the gathered fruit.`
+    });
+    return true;
+  }
+  return false;
+}
+
 // ==================== COLOR & ROT INTERPOLATION HELPERS ====================
 function lerpColor(hexA, hexB, t) {
   const cA = parseInt(hexA.slice(1), 16);
@@ -584,6 +642,25 @@ function playEdenCollectSound() {
   } catch (e) {}
 }
 
+function playEasterEggChime() {
+  try {
+    unlockAudio();
+    const now = audioCtx.currentTime;
+    [587.33, 880.00].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + i * 0.09);
+      gain.gain.setValueAtTime(0.09, now + i * 0.09);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.09 + 0.45);
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start(now + i * 0.09);
+      osc.stop(now + i * 0.09 + 0.46);
+    });
+  } catch (e) {}
+}
+
 function playAbyssCollectSound() {
   try {
     unlockAudio();
@@ -777,29 +854,41 @@ let hasFlickeredBefore = false;
 let isWatcherFleeing = false;
 let fleeGraceTimer = 0;
 
-// Empty Sheol Door & Sheep Cinematic state
+// Empty Sheol Door & Far-Left Sheep Cinematic state
 const sheolDoor = {
-  x: 548,
-  y: 170,
-  width: 24,
-  height: 60
+  x: 544,
+  y: 168,
+  width: 26,
+  height: 64
 };
 
 const sheolSheep = {
-  x: -30,
+  x: -24,
   y: 200,
   size: 18,
   active: false,
   entering: false,
   fleeing: false,
-  targetX: 280,
-  targetY: 205
+  eyesGathered: 0
+};
+
+const sheepEyeTarget = {
+  x: 110,
+  y: 140,
+  size: 12,
+  active: false
 };
 
 let doorCinematicPlayed = false;
 let doorCinematicActive = false;
 let doorCinematicTimer = 0;
 let sheepChoiceReady = false;
+
+function spawnSheepEyeOnFarLeft() {
+  sheepEyeTarget.x = 32 + Math.random() * 145;
+  sheepEyeTarget.y = 45 + Math.random() * (canvas.height - 90);
+  sheepEyeTarget.active = true;
+}
 
 let watcherJukeTimer = 0;
 let watcherJukeOffset = 1.0;
@@ -995,10 +1084,18 @@ function toggleCodex() {
 
     if (loopFate.brokeLoop) {
       manuscript += "[ EPILOGUE // THE SEVERED CYCLE ]\n";
-      manuscript += "  'A sheep stepped into the empty dark and waited for a predator. Instead, we turned toward the door and walked past the script. The rings fell away. Let the loop end where we left it.'\n\n";
+      manuscript += "  'A sheep entered the far side of Sheol, gathering eyes just as we once did. Instead of becoming its hunter, we stepped through the threshold and walked past the script. The rings fell away. Let the loop end where we left it.'\n\n";
     } else if (loopFate.keptLoop) {
       manuscript += "[ EPILOGUE // THE REPEATED CYCLE ]\n";
-      manuscript += "  'A sheep entered Sheol, and the old hunger answered. We chased what we once were, keeping the machinery turning so another wanderer could take our place.'\n\n";
+      manuscript += "  'A sheep entered Sheol, gathering eyes just as we once did. The old hunger answered. We crossed the dark to claim what we once were, keeping the machinery turning.'\n\n";
+    }
+
+    const discoveredEggKeys = Object.keys(EASTER_EGG_REGISTRY).filter((k) => foundEasterEggs[k]);
+    if (discoveredEggKeys.length > 0) {
+      manuscript += "[ MARGINALIA // DISCOVERED EASTER EGGS (" + discoveredEggKeys.length + "/" + Object.keys(EASTER_EGG_REGISTRY).length + ") ]\n";
+      for (const k of discoveredEggKeys) {
+        manuscript += "  * " + EASTER_EGG_REGISTRY[k].title + ":\n" + EASTER_EGG_REGISTRY[k].codexEntry + "\n\n";
+      }
     }
 
     codexContent.innerText = manuscript;
@@ -1018,7 +1115,7 @@ function processCommand(cmd) {
     logToConsole(
       "AVAILABLE COMMANDS:\n" +
       " - crown: Toggles wearing the Watcher's Crown & rings\n" +
-      " - reset: Wipes all unlocked endings, fate, and revives The Watcher\n" +
+      " - reset: Wipes all unlocked endings, fate, eggs, and revives The Watcher\n" +
       " - revive: Restores The Watcher so you can fight/consume it again\n" +
       " - abyss: Instantly triggers the standard Abyss realm (or Empty Sheol if defeated)\n" +
       " - trueabyss: Triggers the Bottomless Pit (or Empty Sheol if Watcher was consumed)\n" +
@@ -1064,13 +1161,15 @@ function processCommand(cmd) {
     localStorage.removeItem("eden_abyss_seals_count");
     localStorage.removeItem("eden_abyss_watcher_consumed");
     localStorage.removeItem("eden_abyss_loop_fate");
+    localStorage.removeItem("eden_abyss_easter_eggs");
     unlocked = { eden: false, death: false, revelation: false, trueEnd: false };
     loopFate = { brokeLoop: false, keptLoop: false };
+    foundEasterEggs = {};
     savedSealsCount = 0;
     setWatcherDefeated(false);
     updateSigilHUD();
     resetGame();
-    logToConsole("[SYS]: All endings, fate, and The Watcher restored.");
+    logToConsole("[SYS]: All endings, fate, easter eggs, and The Watcher restored.");
   } else if (baseCmd === "abyss") {
     triggerUpsideDown(false);
     logToConsole("[SYS]: Forced entry into Sheol // The Abyss.");
@@ -1265,16 +1364,19 @@ function triggerUpsideDown(trueMode = false) {
   watcherTrail = [];
   subliminalGlyphs = [];
   phantomItem.active = false;
+  easterEggPulse = null;
 
   doorCinematicPlayed = false;
   doorCinematicActive = false;
   doorCinematicTimer = 0;
   sheepChoiceReady = false;
-  sheolSheep.x = -30;
+  sheolSheep.x = -24;
   sheolSheep.y = 200;
   sheolSheep.active = false;
   sheolSheep.entering = false;
   sheolSheep.fleeing = false;
+  sheolSheep.eyesGathered = 0;
+  sheepEyeTarget.active = false;
 
   player.x = 60;
   player.y = 200;
@@ -1285,16 +1387,16 @@ function triggerUpsideDown(trueMode = false) {
   realmText.innerText = watcherConsumed
     ? "REALM: EMPTY SHEOL"
     : (allowPit ? "REALM: THE BOTTOMLESS PIT" : "REALM: SHEOL // THE ABYSS");
-  realmText.style.color = watcherConsumed ? "#d4a373" : "#ff2a2a";
+  realmText.style.color = watcherConsumed ? "#a8e6cf" : "#ff2a2a";
   scoreTextTop.innerText = watcherConsumed ? "EMPTY SHEOL" : `SEALS BROKEN: ${eyesCollected}`;
   scoreTextBottom.innerText = watcherConsumed ? "" : `/ ${targetSeals}`;
-  scoreTextTop.style.color = watcherConsumed ? "#d4a373" : "#ff2a2a";
+  scoreTextTop.style.color = watcherConsumed ? "#a8e6cf" : "#ff2a2a";
   
-  loreBox.style.background = watcherConsumed ? "#161312" : "#1a0505";
-  loreBox.style.borderLeft = watcherConsumed ? "4px solid #8d6e63" : "4px solid #ff0000";
-  loreBox.style.color = watcherConsumed ? "#e0cfc2" : "#ff9999";
+  loreBox.style.background = watcherConsumed ? "#12151c" : "#1a0505";
+  loreBox.style.borderLeft = watcherConsumed ? "4px solid #a8e6cf" : "4px solid #ff0000";
+  loreBox.style.color = watcherConsumed ? "#d8e6e0" : "#ff9999";
   setLore(watcherConsumed
-    ? "The pit is gone. Ahead in the dark stands a door—approach it to see what remains."
+    ? "The pit is gone. Ahead on the far right stands a threshold—approach it to see what remains."
     : (allowPit
       ? "YOU CONSUMED THE CORE OF KNOWLEDGE. THE ABYSS KNOWS YOUR NAME."
       : "YOU TOUCHED THE FORBIDDEN ROOT. THE SKY HAS ROLLED UP LIKE A SCROLL."));
@@ -1349,11 +1451,14 @@ function resetGame() {
   doorCinematicActive = false;
   doorCinematicTimer = 0;
   sheepChoiceReady = false;
-  sheolSheep.x = -30;
+  sheolSheep.x = -24;
   sheolSheep.y = 200;
   sheolSheep.active = false;
   sheolSheep.entering = false;
   sheolSheep.fleeing = false;
+  sheolSheep.eyesGathered = 0;
+  sheepEyeTarget.active = false;
+  easterEggPulse = null;
   watcherJukeTimer = 0;
   watcherJukeOffset = 1.0;
   watcherTrail = [];
@@ -1423,7 +1528,7 @@ function drawTree(x, y, style = "round", rot = 0) {
 
 // Same size and exact interlocking 8-pointed star geometry as The Watcher
 function drawPlayerWatcherRings(px, py, psize) {
-  if (!unlocked.trueEnd || loopFate.brokeLoop) return;
+  if (!hasCrownEquipped()) return;
 
   ctx.save();
   ctx.translate(px + psize / 2, py + psize / 2);
@@ -1438,25 +1543,59 @@ function drawPlayerWatcherRings(px, py, psize) {
   ctx.restore();
 }
 
+function drawEasterEggPulse() {
+  if (!easterEggPulse || easterEggPulse.timer <= 0) return;
+
+  const progress = 1 - (easterEggPulse.timer / 28);
+  const radius = 10 + progress * 34;
+  const alpha = (1 - progress) * 0.75;
+
+  ctx.save();
+  ctx.strokeStyle = `rgba(255, 215, 0, ${alpha.toFixed(2)})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(easterEggPulse.x, easterEggPulse.y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Geometric / minimalist threshold matching the game's square & rotating-star style
 function drawSheolDoor() {
   if (!isUpsideDown || !watcherConsumed) return;
 
   const pulse = (Math.sin(glitchTimer * 0.08) + 1) / 2;
+  const cx = sheolDoor.x + sheolDoor.width / 2;
+  const cy = sheolDoor.y + sheolDoor.height / 2;
+
   ctx.save();
 
-  ctx.strokeStyle = `rgba(212, 163, 115, ${0.2 + pulse * 0.25})`;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(sheolDoor.x - 4, sheolDoor.y - 4, sheolDoor.width + 8, sheolDoor.height + 8);
+  // Outer subtle aura
+  ctx.strokeStyle = `rgba(168, 230, 207, ${0.18 + pulse * 0.28})`;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(sheolDoor.x - 5, sheolDoor.y - 5, sheolDoor.width + 10, sheolDoor.height + 10);
 
-  ctx.fillStyle = "#1c1512";
+  // Void interior
+  ctx.fillStyle = "#080b10";
   ctx.fillRect(sheolDoor.x, sheolDoor.y, sheolDoor.width, sheolDoor.height);
 
-  ctx.strokeStyle = "#d4a373";
+  // Crisp threshold frame
+  ctx.strokeStyle = "#a8e6cf";
   ctx.lineWidth = 2;
   ctx.strokeRect(sheolDoor.x, sheolDoor.y, sheolDoor.width, sheolDoor.height);
 
-  ctx.fillStyle = "#dda15e";
-  ctx.fillRect(sheolDoor.x + 5, sheolDoor.y + sheolDoor.height / 2 - 2, 3, 4);
+  // Vertical slit & rotating diamond sigil inside the portal
+  ctx.strokeStyle = `rgba(168, 230, 207, ${0.45 + pulse * 0.45})`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx, sheolDoor.y + 8);
+  ctx.lineTo(cx, sheolDoor.y + sheolDoor.height - 8);
+  ctx.stroke();
+
+  ctx.translate(cx, cy);
+  ctx.rotate(glitchTimer * 0.04);
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(-6, -6, 12, 12);
 
   ctx.restore();
 }
@@ -1464,17 +1603,31 @@ function drawSheolDoor() {
 function drawSheolSheep() {
   if (!isUpsideDown || !watcherConsumed || !sheolSheep.active) return;
 
+  // Draw the eye/seal the sheep is gathering on the far left
+  if (sheepEyeTarget.active) {
+    ctx.save();
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.ellipse(sheepEyeTarget.x + 6, sheepEyeTarget.y + 6, 9, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ff0000";
+    ctx.beginPath();
+    ctx.arc(sheepEyeTarget.x + 6, sheepEyeTarget.y + 6, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   ctx.save();
-  ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.14)";
   ctx.beginPath();
-  ctx.arc(sheolSheep.x + sheolSheep.size / 2, sheolSheep.y + sheolSheep.size / 2, 16, 0, Math.PI * 2);
+  ctx.arc(sheolSheep.x + sheolSheep.size / 2, sheolSheep.y + sheolSheep.size / 2, 15, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = "#f5f5f5";
+  ctx.fillStyle = "#ffffff";
   ctx.fillRect(sheolSheep.x, sheolSheep.y, sheolSheep.size, sheolSheep.size);
 
-  ctx.fillStyle = "#222222";
-  ctx.fillRect(sheolSheep.x + 12, sheolSheep.y + 5, 3, 3);
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(sheolSheep.x + 11, sheolSheep.y + 5, 3, 3);
   ctx.restore();
 }
 
@@ -1490,10 +1643,8 @@ function updateSanityBorder() {
 
   if (watcherConsumed) {
     const pulse = (Math.sin(glitchTimer * 0.06) + 1) / 2;
-    canvas.style.borderColor = loopFate.brokeLoop ? "#5c6b73" : "#6e3b3b";
-    canvas.style.boxShadow = loopFate.brokeLoop
-      ? `0 0 ${14 + pulse * 6}px rgba(168, 230, 207, 0.25)`
-      : `0 0 ${16 + pulse * 8}px rgba(150, 30, 30, 0.35)`;
+    canvas.style.borderColor = loopFate.brokeLoop ? "#5c6b73" : "#4a5d66";
+    canvas.style.boxShadow = `0 0 ${14 + pulse * 6}px rgba(168, 230, 207, 0.22)`;
     updateAmbientSoundscape(0, true, false);
     return;
   }
@@ -1528,48 +1679,62 @@ function updateEmptySheolCinematic(dt) {
     (player.y + player.size / 2) - (sheolDoor.y + sheolDoor.height / 2)
   );
 
-  if (!doorCinematicPlayed && !doorCinematicActive && !sheepChoiceReady && distToDoor < 85) {
+  // Trigger stun cinematic when approaching the door on the right
+  if (!doorCinematicPlayed && !doorCinematicActive && !sheepChoiceReady && distToDoor < 90) {
     doorCinematicPlayed = true;
     doorCinematicActive = true;
-    doorCinematicTimer = 1.65;
+    doorCinematicTimer = 1.75;
     sheolSheep.active = true;
     sheolSheep.entering = true;
     sheolSheep.fleeing = false;
-    sheolSheep.x = -24;
-    sheolSheep.y = 195 + (Math.random() - 0.5) * 40;
-    setLore("A stillness locks your limbs. From the edge of the dark, a sheep steps in...");
+    sheolSheep.eyesGathered = 0;
+    sheolSheep.x = -20;
+    sheolSheep.y = 200;
+    spawnSheepEyeOnFarLeft();
+    setLore("A sudden stillness holds you near the threshold. On the far left, a sheep enters and begins gathering eyes...");
+  }
+
+  // Move the sheep on the far left toward its eyes (imitating your first run in Sheol)
+  if (sheolSheep.active) {
+    const maxFarLeftX = 195;
+
+    if (sheolSheep.fleeing) {
+      const dx = sheolSheep.x - player.x;
+      const dy = sheolSheep.y - player.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      sheolSheep.x = Math.max(20, Math.min(260, sheolSheep.x + (dx / dist) * 185 * dt));
+      sheolSheep.y = Math.max(25, Math.min(canvas.height - 45, sheolSheep.y + (dy / dist) * 185 * dt));
+    } else if (sheepEyeTarget.active) {
+      const dx = sheepEyeTarget.x - sheolSheep.x;
+      const dy = sheepEyeTarget.y - sheolSheep.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 4) {
+        const nextSheepX = sheolSheep.x + (dx / dist) * 155 * dt;
+        sheolSheep.x = Math.min(maxFarLeftX, nextSheepX);
+        sheolSheep.y += (dy / dist) * 155 * dt;
+      } else {
+        sheolSheep.eyesGathered++;
+        playAbyssCollectSound();
+        spawnSheepEyeOnFarLeft();
+      }
+    }
   }
 
   if (doorCinematicActive) {
     doorCinematicTimer -= dt;
-    if (sheolSheep.entering) {
-      const dx = sheolSheep.targetX - sheolSheep.x;
-      const dy = sheolSheep.targetY - sheolSheep.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist > 2) {
-        sheolSheep.x += (dx / dist) * 145 * dt;
-        sheolSheep.y += (dy / dist) * 145 * dt;
-      } else {
-        sheolSheep.entering = false;
-      }
-    }
-
     if (doorCinematicTimer <= 0) {
       doorCinematicActive = false;
       sheolSheep.entering = false;
       sheepChoiceReady = true;
-      setLore("Your limbs release. Go through the door to break the loop—or chase the sheep to repeat it.");
+      setLore("You can move again. Step through the door to break the loop—or cross the dark and hunt the sheep.");
     }
     return;
   }
 
   if (sheepChoiceReady && sheolSheep.active) {
-    if (sheolSheep.fleeing) {
-      const dx = sheolSheep.x - player.x;
-      const dy = sheolSheep.y - player.y;
-      const dist = Math.hypot(dx, dy) || 1;
-      sheolSheep.x = Math.max(20, Math.min(canvas.width - 40, sheolSheep.x + (dx / dist) * 165 * dt));
-      sheolSheep.y = Math.max(20, Math.min(canvas.height - 40, sheolSheep.y + (dy / dist) * 165 * dt));
+    const distPlayerToSheep = Math.hypot(player.x - sheolSheep.x, player.y - sheolSheep.y);
+    if (distPlayerToSheep < 130) {
+      sheolSheep.fleeing = true;
     }
 
     if (!keptLoopEnding && checkCollision(
@@ -1577,13 +1742,13 @@ function updateEmptySheolCinematic(dt) {
       sheolSheep.x, sheolSheep.y, sheolSheep.size, sheolSheep.size
     )) {
       keptLoopEnding = true;
-      sheolSheep.fleeing = true;
+      sheepEyeTarget.active = false;
       unlocked.trueEnd = true;
       loopFate.brokeLoop = false;
       localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
       saveLoopFate("keptLoop");
       playDeathSound();
-      setLore("You claimed the sheep. The cycle turns again—and another wanderer takes your old place.");
+      setLore("You crossed the dark and claimed the sheep. The cycle turns again—and another wanderer takes your old place.");
       gameOver = true;
       shakeTime = 45;
       return;
@@ -1597,11 +1762,12 @@ function updateEmptySheolCinematic(dt) {
     brokeLoopEnding = true;
     sheepChoiceReady = false;
     sheolSheep.active = false;
+    sheepEyeTarget.active = false;
     unlocked.trueEnd = false;
     localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
     saveLoopFate("brokeLoop");
     playDoorStepSound();
-    setLore("You stepped through the door instead of hunting the sheep. The rings shatter and the loop breaks.");
+    setLore("You stepped through the threshold and left the sheep to its own path. The rings shatter and the loop breaks.");
     gameOver = true;
     shakeTime = 18;
   }
@@ -1620,6 +1786,10 @@ function update(dt) {
   if (watcherStunTimer > 0) watcherStunTimer -= dt * 60;
   if (flickerCooldown > 0) flickerCooldown -= dt * 60;
   if (fleeGraceTimer > 0) fleeGraceTimer -= dt;
+  if (easterEggPulse && easterEggPulse.timer > 0) {
+    easterEggPulse.timer -= dt * 60;
+    if (easterEggPulse.timer <= 0) easterEggPulse = null;
+  }
   if (gameOver) return;
 
   if (isUpsideDown && !watcherConsumed && Math.random() < 0.04) {
@@ -1705,7 +1875,7 @@ function update(dt) {
     lastPlayerY = player.y;
     if (isWhispering) {
       isWhispering = false;
-      loreBox.style.color = isUpsideDown ? (watcherConsumed ? "#e0cfc2" : "#ff9999") : "#e0e0e0";
+      loreBox.style.color = isUpsideDown ? (watcherConsumed ? "#d8e6e0" : "#ff9999") : "#e0e0e0";
       loreBox.style.fontStyle = "normal";
       loreBox.innerText = savedLoreText;
     }
@@ -1740,21 +1910,27 @@ function update(dt) {
 
   if (!isWatcherFleeing && checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
     if (!isUpsideDown) {
+      const collectedX = item.x;
+      const collectedY = item.y;
       playEdenCollectSound();
       score++;
       scoreTextTop.innerText = `FRUITS GATHERED: ${score}`;
-      if (score === 5) {
-        setLore(loopFate.brokeLoop
-          ? "The grove is quiet beneath an open sky. Nothing stalks between the trees."
-          : (unlocked.trueEnd
-            ? "The golden fruits taste like static now. The grove recognizes its usurper."
-            : "Deep in the woods, the shadows grow long. Something feels different near the eastern edge."));
-      } else if (score === 12) {
-        setLore(loopFate.brokeLoop
-          ? "Every leaf settles without haste. The old harvest no longer binds you."
-          : (unlocked.trueEnd
-            ? "Even the eastern tree trembles when the Watcher's rings pass by."
-            : "You remain faithful to the harvest, ignoring the strange pull from the east."));
+      const triggeredEgg = checkCrownedFruitEasterEgg(collectedX, collectedY, score);
+
+      if (!triggeredEgg) {
+        if (score === 5) {
+          setLore(loopFate.brokeLoop
+            ? "The grove is quiet beneath an open sky. Nothing stalks between the trees."
+            : (hasCrownEquipped()
+              ? "The golden fruits taste like static now. The grove recognizes its usurper."
+              : "Deep in the woods, the shadows grow long. Something feels different near the eastern edge."));
+        } else if (score === 12) {
+          setLore(loopFate.brokeLoop
+            ? "Every leaf settles without haste. The old harvest no longer binds you."
+            : (hasCrownEquipped()
+              ? "Even the eastern tree trembles when the Watcher's rings pass by."
+              : "You remain faithful to the harvest, ignoring the strange pull from the east."));
+        }
       }
       
       if (score >= 20) {
@@ -1763,7 +1939,7 @@ function update(dt) {
         saveEnding("eden");
         setLore(loopFate.brokeLoop
           ? "A QUIET HARVEST — 'You gathered the fruit in a world no longer bound to a script.'"
-          : (unlocked.trueEnd
+          : (hasCrownEquipped()
             ? "THE USURPER'S HARVEST — 'You tended a dying garden wearing the crown of the abyss.'"
             : "MATTHEW 25:21 — 'Well done, good and faithful servant. Enter into the joy of your master.'"));
       } else {
@@ -1985,6 +2161,8 @@ function draw() {
       ctx.fillRect((i * 59) % 580, (i * 83) % 380, 4, 4);
     }
 
+    drawEasterEggPulse();
+
     if (isFlickering) {
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
@@ -2024,7 +2202,7 @@ function draw() {
 
     ctx.fillStyle = godMode ? "#ffd700" : (isFlickering ? "#b0bec5" : "#ffffff");
     ctx.fillRect(player.x, player.y, player.size, player.size);
-    ctx.fillStyle = (unlocked.trueEnd && !loopFate.brokeLoop) ? "#ff1744" : "#000000";
+    ctx.fillStyle = hasCrownEquipped() ? "#ff1744" : "#000000";
     ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
 
     for (const tree of forestTrees) {
@@ -2034,7 +2212,7 @@ function draw() {
     drawTree(anomaly.x, anomaly.y, anomaly.style, Math.min(1, rot + 0.25));
 
   } else {
-    ctx.fillStyle = watcherConsumed ? "#0a0808" : (isTrueAbyss ? "#050000" : "#090202");
+    ctx.fillStyle = watcherConsumed ? "#07090d" : (isTrueAbyss ? "#050000" : "#090202");
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     if (!watcherConsumed) {
@@ -2091,7 +2269,7 @@ function draw() {
 
     drawPlayerWatcherRings(player.x, player.y, player.size);
 
-    ctx.fillStyle = isWatcherFleeing ? "#ff1744" : (godMode ? "#ffd700" : (doorCinematicActive ? "#d4a373" : "#b0bec5"));
+    ctx.fillStyle = isWatcherFleeing ? "#ff1744" : (godMode ? "#ffd700" : (doorCinematicActive ? "#a8e6cf" : "#b0bec5"));
     ctx.fillRect(player.x, player.y, player.size, player.size);
 
     if (!watcherConsumed) {
@@ -2111,7 +2289,8 @@ function draw() {
     if (watcherConsumed && !gameOver) {
       drawSheolDoor();
       drawSheolSheep();
-      ctx.fillStyle = doorCinematicActive ? "#d4a373" : "#b0bec5";
+      drawPlayerWatcherRings(player.x, player.y, player.size);
+      ctx.fillStyle = doorCinematicActive ? "#a8e6cf" : "#b0bec5";
       ctx.fillRect(player.x, player.y, player.size, player.size);
     }
   }
@@ -2127,7 +2306,7 @@ function draw() {
       ctx.fillText("[THE LOOP BROKEN // UNBOUND]", canvas.width / 2, 138);
       ctx.fillStyle = "#e0e0e0";
       ctx.font = "12px Courier New";
-      ctx.fillText("You walked through the door and left the sheep behind.", canvas.width / 2, 174);
+      ctx.fillText("You walked through the threshold and left the sheep behind.", canvas.width / 2, 174);
       ctx.fillText("The rings fell away. Nothing waits in the dark to replace you.", canvas.width / 2, 198);
       ctx.fillStyle = "#888888";
       ctx.font = "12px Courier New";
@@ -2140,13 +2319,13 @@ function draw() {
       ctx.fillText("[THE CYCLE REPEATED // NEW WATCHER]", canvas.width / 2, 138);
       ctx.fillStyle = "#e0cfc2";
       ctx.font = "12px Courier New";
-      ctx.fillText("You chased the sheep instead of the door.", canvas.width / 2, 174);
+      ctx.fillText("You chased the sheep instead of the threshold.", canvas.width / 2, 174);
       ctx.fillText("The role claimed you once more—and another sheep will follow.", canvas.width / 2, 198);
       ctx.fillStyle = "#888888";
       ctx.font = "12px Courier New";
       ctx.fillText("Press [R] to re-enter the turning wheel.", canvas.width / 2, 245);
     } else if (edenWon) {
-      const corruptedEden = unlocked.trueEnd && !loopFate.brokeLoop;
+      const corruptedEden = hasCrownEquipped();
       ctx.fillStyle = corruptedEden ? "rgba(35, 25, 22, 0.92)" : "rgba(255, 248, 220, 0.90)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = corruptedEden ? "#ff5252" : "#2e7d32";
