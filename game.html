@@ -418,10 +418,10 @@ function renderCodexMargin() {
 }
 
 function hasCrownEquipped() {
-  return Boolean(unlocked.trueEnd && watcherDefeated && !loopFate.brokeLoop);
+  return Boolean(watcherDefeated && !loopFate.brokeLoop);
 }
 
-// Empty Sheol and the door/sheep picking event require wearing the Watcher's Crown
+// Empty Sheol and the door/sheep picking event require holding the Watcher's power without having broken the loop
 function isEmptySheolActive() {
   return Boolean(isUpsideDown && watcherConsumed && hasCrownEquipped());
 }
@@ -438,7 +438,7 @@ function lerpColor(hexA, hexB, t) {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
-// Eden rots only while wearing the Watcher's crown and the loop hasn't been broken
+// Eden rots only while holding the Watcher's power and the loop hasn't been broken
 function getEdenRotLevel() {
   if (loopFate.brokeLoop) return 0.0;
   return hasCrownEquipped() ? 0.75 : 0.0;
@@ -1115,16 +1115,14 @@ function toggleCodex() {
     }
 
     if (unlocked.trueEnd) {
-      manuscript += "[ REALM IV: THE EIGHTH DAY // THE CROWN ]\n";
-      manuscript += "  'And when the bottomless pit opened its jaws, we did not run. We hunted the watcher down. In consuming the core, the simulation collapsed into our hands. We hold the syntax. We are the architects now.'\n\n";
-    }
-
-    if (loopFate.brokeLoop) {
-      manuscript += "[ EPILOGUE // THE SEVERED CYCLE ]\n";
-      manuscript += "  'A sheep entered Sheol, stumbling after scattered eyes and dodging your gaze just as you once did. Instead of becoming its hunter, you stepped through the threshold and walked past the script. The rings fell away. Let the loop end where you left it.'\n\n";
-    } else if (loopFate.keptLoop) {
-      manuscript += "[ EPILOGUE // THE REPEATED CYCLE ]\n";
-      manuscript += "  'A sheep entered Sheol, stumbling after scattered eyes and dodging your gaze just as you once did. The old hunger answered. You ran it down to claim what you once were, keeping the machinery turning.'\n\n";
+      manuscript += "[ TRUE ENDING // THE CHOICE OF THE CYCLE ]\n";
+      if (loopFate.brokeLoop) {
+        manuscript += "  'In Empty Sheol, a sheep appeared to repeat the old hunt. Instead of claiming another vessel, you stepped through the threshold and broke the cycle. The crown fell away, leaving the grove unbound.'\n\n";
+      } else if (loopFate.keptLoop) {
+        manuscript += "  'In Empty Sheol, a sheep appeared to repeat the old hunt. You chased it down and claimed the cycle once more—keeping the turning wheel alive.'\n\n";
+      } else {
+        manuscript += "  'You conquered the pit and faced the choice of the cycle itself.'\n\n";
+      }
     }
 
     codexContent.innerText = manuscript;
@@ -1163,12 +1161,12 @@ function processCommand(cmd) {
   if (baseCmd === "help") {
     logToConsole(
       "AVAILABLE COMMANDS:\n" +
-      " - crown: Toggles wearing the Watcher's Crown & rings (required for Empty Sheol)\n" +
+      " - crown: Toggles holding the Watcher's power & rings (required for Empty Sheol)\n" +
       " - reset: Wipes all unlocked endings, fate, notches, and revives The Watcher\n" +
       " - revive: Restores The Watcher so you can fight/consume it again\n" +
       " - abyss: Enters Sheol (Empty Sheol if Crown is worn, active hunt otherwise)\n" +
       " - trueabyss: Triggers the Bottomless Pit (or Empty Sheol if Crown is worn)\n" +
-      " - flee: Triggers the True Ending Chase Phase (if Crown is not yet worn)\n" +
+      " - flee: Triggers the Watcher Chase Phase (if Crown is not yet worn)\n" +
       " - unlockall: Unlocks the 3 base seals, restores The Watcher & spawns Crimson Fruit\n" +
       " - godmode: Toggles invulnerability against The Watcher\n" +
       " - speed <val>: Sets player speed (default: 360)\n" +
@@ -1177,19 +1175,15 @@ function processCommand(cmd) {
     );
   } else if (baseCmd === "revive") {
     setWatcherDefeated(false);
-    unlocked.trueEnd = false;
     clearLoopFate();
-    localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
     updateSigilHUD();
     checkForbiddenFruitSpawn();
     syncEdenRealmDisplay();
     logToConsole("[SYS]: The Watcher has been restored and Crown removed.");
   } else if (baseCmd === "crown") {
     const equipping = !hasCrownEquipped();
-    unlocked.trueEnd = equipping;
     setWatcherDefeated(equipping);
     clearLoopFate();
-    localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
     updateSigilHUD();
     checkForbiddenFruitSpawn();
     syncEdenRealmDisplay();
@@ -1233,7 +1227,7 @@ function processCommand(cmd) {
       scoreTextBottom.innerText = "";
       scoreTextTop.style.color = "#ffffff";
       setLore("THE ROLES ARE REVERSED. HUNT IT DOWN BEFORE IT UNMAKES THE PIT.");
-      logToConsole("[SYS]: Forced True Ending Hunt Phase.");
+      logToConsole("[SYS]: Forced Watcher Chase Phase.");
     } else {
       logToConsole("[SYS]: You are already wearing the Watcher's Crown. Use 'crown' or 'revive' to fight it again.");
     }
@@ -1242,7 +1236,6 @@ function processCommand(cmd) {
     unlocked.eden = true;
     unlocked.death = true;
     unlocked.revelation = true;
-    unlocked.trueEnd = false;
     setWatcherDefeated(false);
     clearLoopFate();
     localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
@@ -1387,7 +1380,7 @@ function spawnPhantomItem() {
 }
 
 function triggerUpsideDown(trueMode = false) {
-  // Only enter Empty Sheol if the player actually has the Watcher's Crown equipped
+  // Only enter Empty Sheol if the player holds the Watcher's power without having broken the loop
   const enterEmptySheol = hasCrownEquipped();
   watcherConsumed = enterEmptySheol;
   const allowPit = trueMode && !enterEmptySheol;
@@ -1482,6 +1475,8 @@ function handleAnomalyTouch() {
 }
 
 function resetGame() {
+  for (const k in keys) keys[k] = false;
+
   isUpsideDown = false;
   isTrueAbyss = false;
   gameOver = false;
@@ -1801,7 +1796,7 @@ function updateEmptySheolCinematic(dt) {
       doorCinematicActive = false;
       sheolSheep.entering = false;
       sheepChoiceReady = true;
-      setLore("YOUR LIMBS RELEASE. STEP THROUGH THE DOOR TO BREAK THE LOOP—OR CHASE DOWN THE SHEEP.");
+      setLore("YOUR LIMBS RELEASE. STEP THROUGH THE DOOR TO BREAK THE CYCLE—OR CHASE DOWN THE SHEEP.");
     }
     return;
   }
@@ -1812,12 +1807,14 @@ function updateEmptySheolCinematic(dt) {
       sheolSheep.x, sheolSheep.y, sheolSheep.size, sheolSheep.size
     )) {
       keptLoopEnding = true;
+      sheepChoiceReady = false;
+      sheolSheep.active = false;
       sheepEyeTarget.active = false;
-      unlocked.trueEnd = true;
-      localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
+      setWatcherDefeated(true);
       saveLoopFate("keptLoop");
-      playDeathSound();
-      setLore("YOU RAN DOWN THE SHEEP AND CLAIMED IT. THE CYCLE TURNS AGAIN.");
+      saveEnding("trueEnd");
+      playTrueEndingSound();
+      setLore("TRUE ENDING [CYCLE KEPT] — 'You chased down the sheep and claimed the turning wheel once more.' Press [R] to begin a new run.");
       gameOver = true;
       shakeTime = 45;
       return;
@@ -1832,12 +1829,11 @@ function updateEmptySheolCinematic(dt) {
     sheepChoiceReady = false;
     sheolSheep.active = false;
     sheepEyeTarget.active = false;
-    unlocked.trueEnd = false;
     setWatcherDefeated(false);
-    localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
     saveLoopFate("brokeLoop");
+    saveEnding("trueEnd");
     playDoorStepSound();
-    setLore("You stepped through the threshold and left the sheep to its own path. The crown shatters and the loop breaks.");
+    setLore("TRUE ENDING [CYCLE BROKEN] — 'You stepped through the threshold and left the sheep unbound.' Press [R] to begin a new run.");
     gameOver = true;
     shakeTime = 18;
   }
@@ -2141,7 +2137,6 @@ function update(dt) {
       playTrueEndingSound();
       gameOver = true;
       trueWon = true;
-      saveEnding("trueEnd");
       shakeTime = 9999;
     }
 
@@ -2366,28 +2361,28 @@ function draw() {
       ctx.fillStyle = "rgba(10, 14, 16, 0.94)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#a8e6cf";
-      ctx.font = "bold 20px Courier New";
-      ctx.fillText("[THE LOOP BROKEN // UNBOUND]", canvas.width / 2, 138);
+      ctx.font = "bold 19px Courier New";
+      ctx.fillText("[TRUE ENDING // CYCLE BROKEN]", canvas.width / 2, 138);
       ctx.fillStyle = "#e0e0e0";
       ctx.font = "12px Courier New";
-      ctx.fillText("You walked through the threshold and left the sheep behind.", canvas.width / 2, 174);
+      ctx.fillText("You stepped through the threshold and left the sheep behind.", canvas.width / 2, 174);
       ctx.fillText("The crown fell away. Nothing waits in the dark to replace you.", canvas.width / 2, 198);
       ctx.fillStyle = "#888888";
       ctx.font = "12px Courier New";
-      ctx.fillText("Press [R] to step back into the quiet.", canvas.width / 2, 245);
+      ctx.fillText("Press [R] to begin a new run.", canvas.width / 2, 245);
     } else if (keptLoopEnding) {
       ctx.fillStyle = "rgba(18, 4, 6, 0.95)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#ff5252";
-      ctx.font = "bold 20px Courier New";
-      ctx.fillText("[THE CYCLE REPEATED // NEW WATCHER]", canvas.width / 2, 138);
+      ctx.font = "bold 19px Courier New";
+      ctx.fillText("[TRUE ENDING // CYCLE KEPT]", canvas.width / 2, 138);
       ctx.fillStyle = "#e0cfc2";
       ctx.font = "12px Courier New";
-      ctx.fillText("You chased the sheep instead of the threshold.", canvas.width / 2, 174);
-      ctx.fillText("The role claimed you once more—and another sheep will follow.", canvas.width / 2, 198);
+      ctx.fillText("You chased down the sheep instead of the threshold.", canvas.width / 2, 174);
+      ctx.fillText("The cycle turns once more—and another sheep will follow.", canvas.width / 2, 198);
       ctx.fillStyle = "#888888";
       ctx.font = "12px Courier New";
-      ctx.fillText("Press [R] to re-enter the turning wheel.", canvas.width / 2, 245);
+      ctx.fillText("Press [R] to begin a new run.", canvas.width / 2, 245);
     } else if (crownedHarvestWon) {
       ctx.fillStyle = "rgba(24, 18, 14, 0.94)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -2400,7 +2395,7 @@ function draw() {
       ctx.fillText("Beneath the rot, the garden's first memory still answered.", canvas.width / 2, 204);
       ctx.fillStyle = "#888888";
       ctx.font = "12px Courier New";
-      ctx.fillText("Press [R] to walk the grove again.", canvas.width / 2, 245);
+      ctx.fillText("Press [R] to begin a new run.", canvas.width / 2, 245);
     } else if (edenWon) {
       ctx.fillStyle = "rgba(255, 248, 220, 0.90)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -2412,7 +2407,7 @@ function draw() {
       ctx.fillText("You tended the grove in peace and resisted temptation.", canvas.width / 2, 185);
       ctx.fillStyle = "#666666";
       ctx.font = "12px Courier New";
-      ctx.fillText(loopFate.brokeLoop ? "Press [R] to tend the quiet grove again." : "Press [R] to replay... but something feels off.", canvas.width / 2, 235);
+      ctx.fillText(loopFate.brokeLoop ? "Press [R] to begin a new run." : "Press [R] to replay... but something feels off.", canvas.width / 2, 235);
     } else if (trueWon) {
       ctx.fillStyle = "rgba(5, 2, 8, 0.96)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -2431,11 +2426,11 @@ function draw() {
       ctx.fillStyle = "#a8e6cf";
       ctx.font = "11px Courier New";
       ctx.fillText("memory_addr: 0x7fff5fbff800 -- status: WATCHER CONSUMED", canvas.width / 2, 165);
-      ctx.fillText("You wear its crown now. Return to Eden or Sheol and see what remains.", canvas.width / 2, 195);
+      ctx.fillText("You wear its crown now. Return to Eden or Sheol and face the choice.", canvas.width / 2, 195);
       
       ctx.fillStyle = "#888888";
       ctx.font = "12px Courier New";
-      ctx.fillText("Press [R] to re-compile reality.", canvas.width / 2, 245);
+      ctx.fillText("Press [R] to begin a new run.", canvas.width / 2, 245);
     } else if (won) {
       ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -2445,7 +2440,7 @@ function draw() {
       ctx.fillStyle = "#cccccc";
       ctx.font = "14px Courier New";
       ctx.fillText("You gazed into the Abyss and survived the revelation.", canvas.width / 2, 195);
-      ctx.fillText("Press [R] to return to the beginning.", canvas.width / 2, 240);
+      ctx.fillText("Press [R] to begin a new run.", canvas.width / 2, 240);
     } else {
       ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -2455,7 +2450,7 @@ function draw() {
       ctx.fillStyle = "#aaaaaa";
       ctx.font = "14px Courier New";
       ctx.fillText("Curiosity opened the pit. The Watcher claimed you.", canvas.width / 2, 195);
-      ctx.fillText("Press [R] to try again.", canvas.width / 2, 240);
+      ctx.fillText("Press [R] to begin a new run.", canvas.width / 2, 240);
     }
   }
 
