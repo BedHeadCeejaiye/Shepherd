@@ -154,6 +154,12 @@
     z-index: 100;
     font-family: 'Courier New', Courier, monospace;
     background-image: radial-gradient(circle, #211c18 0%, #0d0b09 100%);
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  }
+  #codex-overlay.amber-tinted {
+    border-color: #b8862d;
+    box-shadow: 0 0 28px rgba(212, 160, 54, 0.28);
+    background-image: radial-gradient(circle, #292014 0%, #0e0b07 100%);
   }
   #codex-header {
     font-size: 13px;
@@ -165,6 +171,10 @@
     display: flex;
     justify-content: space-between;
     letter-spacing: 1px;
+  }
+  #codex-overlay.amber-tinted #codex-header {
+    color: #f0c45a;
+    border-bottom-color: #8c6623;
   }
   #codex-body {
     flex-grow: 1;
@@ -180,6 +190,9 @@
     line-height: 1.6;
     white-space: pre-wrap;
     padding-right: 5px;
+  }
+  #codex-overlay.amber-tinted #codex-content {
+    color: #d99b38;
   }
   #codex-content::-webkit-scrollbar {
     width: 6px;
@@ -200,6 +213,9 @@
     justify-content: flex-start;
     gap: 10px;
     padding-top: 4px;
+  }
+  #codex-overlay.amber-tinted #codex-margin {
+    border-left-color: #6e501c;
   }
   .margin-notch {
     font-size: 12px;
@@ -223,6 +239,10 @@
     color: #8d6e63;
     text-align: center;
     letter-spacing: 1px;
+  }
+  #codex-overlay.amber-tinted #codex-footer {
+    border-top-color: #8c6623;
+    color: #b58d45;
   }
 
   /* Developer Console Overlay */
@@ -378,6 +398,10 @@ const CODEX_MARGIN_NOTCHES = [
     unlockedHint: "Twenty fruits gathered beneath crimson rings."
   }
 ];
+
+function applyCodexHarvestTint() {
+  codexOverlay.classList.toggle("amber-tinted", Boolean(unlocked.crownedHarvest));
+}
 
 function renderCodexMargin() {
   codexMargin.innerHTML = "";
@@ -798,6 +822,7 @@ function saveEnding(key) {
   unlocked[key] = true;
   localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
   updateSigilHUD();
+  applyCodexHarvestTint();
   if (codexOpen) renderCodexMargin();
 }
 
@@ -1103,6 +1128,7 @@ function toggleCodex() {
     }
 
     codexContent.innerText = manuscript;
+    applyCodexHarvestTint();
     renderCodexMargin();
     codexOverlay.style.display = "flex";
   } else {
@@ -1177,6 +1203,7 @@ function processCommand(cmd) {
     loopFate = { brokeLoop: false, keptLoop: false };
     savedSealsCount = 0;
     setWatcherDefeated(false);
+    applyCodexHarvestTint();
     updateSigilHUD();
     resetGame();
     logToConsole("[SYS]: All endings, fate, margin notches, and The Watcher restored.");
@@ -1218,7 +1245,6 @@ function processCommand(cmd) {
     unlocked.trueEnd = false;
     setWatcherDefeated(false);
     clearLoopFate();
-    savedSealsCount = Math.max(savedSealsCount, 6);
     localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
     localStorage.setItem("eden_abyss_seals_count", savedSealsCount);
     updateSigilHUD();
@@ -1508,6 +1534,7 @@ function resetGame() {
   canvas.style.boxShadow = "0 0 20px rgba(0,0,0,0.8)";
 
   checkForbiddenFruitSpawn();
+  applyCodexHarvestTint();
   
   const rot = getEdenRotLevel();
   realmText.innerText = rot > 0 ? "REALM: CORRUPTED GROVE" : "REALM: EDEN'S GROVE";
@@ -1558,7 +1585,7 @@ function drawTree(x, y, style = "round", rot = 0) {
   }
 }
 
-// Same size and interlocking 8-pointed star geometry as The Watcher; outer ring shifts gold once Crowned Harvest is unlocked
+// Same size and exact interlocking 8-pointed star geometry as The Watcher
 function drawPlayerWatcherRings(px, py, psize) {
   if (!hasCrownEquipped()) return;
 
@@ -1570,7 +1597,6 @@ function drawPlayerWatcherRings(px, py, psize) {
   ctx.lineWidth = 2;
   ctx.strokeRect(-18, -18, 36, 36);
   ctx.rotate(Math.PI / 4);
-  ctx.strokeStyle = unlocked.crownedHarvest ? "#ffd700" : "#ff1744";
   ctx.strokeRect(-18, -18, 36, 36);
 
   ctx.restore();
@@ -2244,7 +2270,7 @@ function draw() {
 
     ctx.fillStyle = godMode ? "#ffd700" : (isFlickering ? "#b0bec5" : "#ffffff");
     ctx.fillRect(player.x, player.y, player.size, player.size);
-    ctx.fillStyle = unlocked.crownedHarvest ? "#ffd700" : (hasCrownEquipped() ? "#ff1744" : "#000000");
+    ctx.fillStyle = hasCrownEquipped() ? "#ff1744" : "#000000";
     ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
 
     for (const tree of forestTrees) {
@@ -2316,10 +2342,6 @@ function draw() {
 
     ctx.fillStyle = isWatcherFleeing ? "#ff1744" : (godMode ? "#ffd700" : (doorCinematicActive ? "#ff8a80" : "#b0bec5"));
     ctx.fillRect(player.x, player.y, player.size, player.size);
-    if (unlocked.crownedHarvest && !isWatcherFleeing && !godMode && !doorCinematicActive) {
-      ctx.fillStyle = "#ffd700";
-      ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
-    }
 
     if (!emptySheol) {
       drawWatcher(watcher.x, watcher.y, watcher.size, isWatcherFleeing);
