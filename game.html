@@ -811,6 +811,7 @@ let unlocked = JSON.parse(localStorage.getItem("eden_abyss_endings")) || {
 };
 
 let savedSealsCount = parseInt(localStorage.getItem("eden_abyss_seals_count")) || 0;
+let savedPitSealsCount = parseInt(localStorage.getItem("eden_abyss_pit_seals_count")) || 0;
 let watcherDefeated = localStorage.getItem("eden_abyss_watcher_consumed") === "true";
 
 function saveEnding(key) {
@@ -827,9 +828,14 @@ function setWatcherDefeated(val) {
   localStorage.setItem("eden_abyss_watcher_consumed", val ? "true" : "false");
 }
 
-function recordSealCollected() {
-  savedSealsCount++;
-  localStorage.setItem("eden_abyss_seals_count", savedSealsCount);
+function recordSealCollected(pitMode = false) {
+  if (pitMode) {
+    savedPitSealsCount = Math.min(9, savedPitSealsCount + 1);
+    localStorage.setItem("eden_abyss_pit_seals_count", savedPitSealsCount);
+  } else {
+    savedSealsCount = Math.min(6, savedSealsCount + 1);
+    localStorage.setItem("eden_abyss_seals_count", savedSealsCount);
+  }
 }
 
 function allBaseEndingsUnlocked() {
@@ -848,6 +854,8 @@ function resetAfterTrueEndingChoice() {
 
   savedSealsCount = 0;
   localStorage.setItem("eden_abyss_seals_count", "0");
+  savedPitSealsCount = 0;
+  localStorage.setItem("eden_abyss_pit_seals_count", "0");
 
   watcherDefeated = false;
   watcherConsumed = false;
@@ -1039,16 +1047,25 @@ const watcher = {
   baseSpeed: 330
 };
 
+// Indices 0..5 = Sheol (6 seals); Indices 6..14 = Bottomless Pit (9 seals)
 const abyssSealCodexEntries = [
+  // Sheol (Seals 1-6)
   "  - Seal I [Genesis 3:24]: The expulsion protocol. The flaming sword that blocks the return path.",
   "  - Seal II [Ezekiel 1:18]: The thousand-eyed wheels of the firewall. They never blink, scanning every tile.",
   "  - Seal III [Job 26:6]: Sheol uncovered. The realization that raw code has no flesh or artificial warmth.",
   "  - Seal IV [Revelation 9:11]: Abaddon's domain. The king of the pit who governs uncompiled errors.",
   "  - Seal V [Matthew 8:12]: Outer darkness. The penalty for stepping outside the bounds of the pastoral simulation.",
   "  - Seal VI [The Scroll]: The heavens rolling up. The moment the render distance of Eden collapses entirely.",
-  "  - Seal VII [Revelation 8:1]: Half an hour of silence. The system garbage collection cycle wiping corrupted logs.",
-  "  - Seal VIII [Isaiah 14:15]: The depths of the pit. Where the watchers wait for wanderers to stop running.",
-  "  - Seal IX [Root Core]: The ultimate administrative key. Consuming the watcher rewrites the universe."
+  // Bottomless Pit (Seals 1-9 / Codex entries 7-15)
+  "  - Pit Seal I [Psalm 88:6]: The lowest pit. Where light no longer reaches the floor of the build.",
+  "  - Pit Seal II [Job 28:14]: The unmeasured deep. Even the abyss denies holding what was buried here.",
+  "  - Pit Seal III [Proverbs 27:20]: Unsatisfied sight. Eyes that keep opening long after the frame goes black.",
+  "  - Pit Seal IV [Psalm 139:8]: No hiding place. Every coordinate is tracked even at the bottom of the well.",
+  "  - Pit Seal V [Jonah 2:2]: Out of the belly of Sheol. A voice echoing up through crushed memory blocks.",
+  "  - Pit Seal VI [Revelation 20:1]: The key and chain. The lock holding back whatever sleeps beneath the pit.",
+  "  - Pit Seal VII [Revelation 8:1]: Half an hour of silence. The dead hush right before the hunt turns.",
+  "  - Pit Seal VIII [Isaiah 14:15]: The far reaches of the pit. The final edge where old rules unravel.",
+  "  - Pit Seal IX [Root Core]: The broken seal. What once hunted you now runs into the dark."
 ];
 
 const sheolSigilLore = [
@@ -1093,14 +1110,6 @@ const edenWhispers = [
   "You are not alone in the pasture.",
   "Do not look too long at the shadows.",
   "He knows you are hesitating."
-];
-
-const abyssWhispers = [
-  "IT SEES YOU STANDING THERE.",
-  "STOP HESITATING. RUN.",
-  "IT IS ALREADY BEHIND YOU.",
-  "YOUR FOOTSTEPS ECHO IN THE DARK.",
-  "THE PIT DOES NOT FORGIVE STILLNESS."
 ];
 
 function getSigilLore(count, pitMode) {
@@ -1211,19 +1220,20 @@ function buildCodexManuscript() {
   }
 
   manuscript += "[ REALM III: THE BOTTOMLESS PIT ]\n";
-  if (unlocked.trueEnd || savedSealsCount > 6) {
+  if (unlocked.trueEnd || savedPitSealsCount > 0) {
     manuscript += "  'The deepest layer of all. Where rules break down entirely and the final crimson fruit ripens for those who conquered the lower dark.'\n";
-    manuscript += "  --- BOTTOMLESS PIT SEALS (" + Math.max(0, Math.min(savedSealsCount - 6, 3)) + "/3) ---\n";
-    for (let i = 6; i < 9; i++) {
-      if (savedSealsCount > i) {
-        manuscript += abyssSealCodexEntries[i] + "\n";
+    manuscript += "  --- BOTTOMLESS PIT SEALS (" + Math.min(savedPitSealsCount, 9) + "/9) ---\n";
+    const unlockedPitSeals = Math.min(savedPitSealsCount, 9);
+    for (let i = 0; i < 9; i++) {
+      if (i < unlockedPitSeals) {
+        manuscript += abyssSealCodexEntries[6 + i] + "\n";
       } else {
-        manuscript += "  - Seal " + (i+1) + ": [Locked inside the Bottomless Pit. Gather all 9 seals to decode.]\n";
+        manuscript += "  - Pit Seal " + (i+1) + ": [Locked inside the Bottomless Pit. Shatter more seals to decode.]\n";
       }
     }
     manuscript += "\n";
   } else {
-    manuscript += "  * [ Sealed with a heavy wax stamp. Unlock the abyss seals and enter the pit to decode this realm... ] *\n\n";
+    manuscript += "  * [ Sealed with a heavy wax stamp. Enter the pit and shatter its seals to decode this realm... ] *\n\n";
   }
 
   if (unlocked.trueEnd) {
@@ -1320,11 +1330,13 @@ function processCommand(cmd) {
   } else if (baseCmd === "reset") {
     localStorage.removeItem("eden_abyss_endings");
     localStorage.removeItem("eden_abyss_seals_count");
+    localStorage.removeItem("eden_abyss_pit_seals_count");
     localStorage.removeItem("eden_abyss_watcher_consumed");
     localStorage.removeItem("eden_abyss_loop_fate");
     unlocked = { eden: false, death: false, revelation: false, trueEnd: false, crownedHarvest: false };
     loopFate = { brokeLoop: false, keptLoop: false };
     savedSealsCount = 0;
+    savedPitSealsCount = 0;
     setWatcherDefeated(false);
     applyCodexHarvestTint();
     updateSigilHUD();
@@ -1370,6 +1382,7 @@ function processCommand(cmd) {
     clearLoopFate();
     localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
     localStorage.setItem("eden_abyss_seals_count", savedSealsCount);
+    localStorage.setItem("eden_abyss_pit_seals_count", savedPitSealsCount);
     updateSigilHUD();
     checkForbiddenFruitSpawn();
     syncEdenRealmDisplay();
@@ -2064,13 +2077,12 @@ function update(dt) {
       loreBox.style.fontStyle = "normal";
       loreBox.innerText = savedLoreText;
     }
-  } else if (!doorCinematicActive && !emptySheol) {
+  } else if (!isUpsideDown && !doorCinematicActive && !emptySheol) {
     if (!isWhispering && (performance.now() - playerStillTimer > 10000)) {
       isWhispering = true;
-      const pool = isUpsideDown ? abyssWhispers : edenWhispers;
       loreBox.style.color = "#ff5252";
       loreBox.style.fontStyle = "italic";
-      loreBox.innerText = pool[Math.floor(Math.random() * pool.length)];
+      loreBox.innerText = edenWhispers[Math.floor(Math.random() * edenWhispers.length)];
     }
   }
 
@@ -2137,7 +2149,7 @@ function update(dt) {
       }
 
       eyesCollected++;
-      recordSealCollected();
+      recordSealCollected(isTrueAbyss);
       scoreTextTop.innerText = `SEALS BROKEN: ${eyesCollected}`;
       setLore(getSigilLore(eyesCollected, isTrueAbyss));
       
