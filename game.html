@@ -841,6 +841,29 @@ function allBaseEndingsUnlocked() {
   return unlocked.eden && unlocked.death && unlocked.revelation;
 }
 
+function resetAfterTrueEndingChoice() {
+  unlocked = {
+    eden: false,
+    death: false,
+    revelation: false,
+    trueEnd: Boolean(unlocked.trueEnd),
+    crownedHarvest: Boolean(unlocked.crownedHarvest)
+  };
+  localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
+
+  savedSealsCount = 0;
+  localStorage.setItem("eden_abyss_seals_count", "0");
+
+  watcherDefeated = false;
+  watcherConsumed = false;
+  localStorage.setItem("eden_abyss_watcher_consumed", "false");
+
+  loopFate = { brokeLoop: false, keptLoop: false };
+  localStorage.setItem("eden_abyss_loop_fate", JSON.stringify(loopFate));
+
+  resetGame();
+}
+
 function updateSigilHUD() {
   const s1 = unlocked.eden ? "<span style='color:#a8e6cf'>[LEAF]</span>" : "[----]";
   const s2 = unlocked.death ? "<span style='color:#ff5252'>[VOID]</span>" : "[----]";
@@ -1801,11 +1824,9 @@ function updateEmptySheolCinematic(dt) {
       player.x, player.y, player.size, player.size,
       sheolSheep.x, sheolSheep.y, sheolSheep.size, sheolSheep.size
     )) {
-      setWatcherDefeated(true);
-      saveLoopFate("keptLoop");
       saveEnding("trueEnd");
       playTrueEndingSound();
-      resetGame();
+      resetAfterTrueEndingChoice();
       return;
     }
   }
@@ -1814,11 +1835,9 @@ function updateEmptySheolCinematic(dt) {
     player.x, player.y, player.size, player.size,
     sheolDoor.x, sheolDoor.y, sheolDoor.width, sheolDoor.height
   )) {
-    setWatcherDefeated(false);
-    saveLoopFate("brokeLoop");
     saveEnding("trueEnd");
     playDoorStepSound();
-    resetGame();
+    resetAfterTrueEndingChoice();
   }
 }
 
