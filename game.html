@@ -932,8 +932,9 @@ const sheolSheep = {
   fleeing: false,
   eyesGathered: 0,
   hesitateTimer: 0,
-  evadeJukeTimer: 0,
-  evadeJukeDir: 1
+  jukeTimer: 0,
+  jukeOffset: 1.0,
+  trail: []
 };
 
 const sheepEyeTarget = {
@@ -1567,8 +1568,9 @@ function triggerUpsideDown(trueMode = false) {
   sheolSheep.fleeing = false;
   sheolSheep.eyesGathered = 0;
   sheolSheep.hesitateTimer = 0;
-  sheolSheep.evadeJukeTimer = 0;
-  sheolSheep.evadeJukeDir = 1;
+  sheolSheep.jukeTimer = 0;
+  sheolSheep.jukeOffset = 1.0;
+  sheolSheep.trail = [];
   sheepEyeTarget.active = false;
 
   player.x = 60;
@@ -1653,8 +1655,9 @@ function respawnAfterRunEnd() {
   sheolSheep.fleeing = false;
   sheolSheep.eyesGathered = 0;
   sheolSheep.hesitateTimer = 0;
-  sheolSheep.evadeJukeTimer = 0;
-  sheolSheep.evadeJukeDir = 1;
+  sheolSheep.jukeTimer = 0;
+  sheolSheep.jukeOffset = 1.0;
+  sheolSheep.trail = [];
   sheepEyeTarget.active = false;
   watcherJukeTimer = 0;
   watcherJukeOffset = 1.0;
@@ -1790,6 +1793,13 @@ function drawSheolDoor() {
 function drawSheolSheep() {
   if (!isEmptySheolActive() || !sheolSheep.active) return;
 
+  for (const t of sheolSheep.trail) {
+    ctx.save();
+    ctx.fillStyle = `rgba(255, 255, 255, ${(t.life / 16) * 0.25})`;
+    ctx.fillRect(t.x, t.y, sheolSheep.size, sheolSheep.size);
+    ctx.restore();
+  }
+
   if (sheepEyeTarget.active) {
     ctx.save();
     ctx.fillStyle = "#ffffff";
@@ -1804,9 +1814,9 @@ function drawSheolSheep() {
   }
 
   ctx.save();
-  ctx.fillStyle = sheolSheep.fleeing ? "rgba(255, 82, 82, 0.18)" : "rgba(255, 255, 255, 0.14)";
+  ctx.fillStyle = sheolSheep.fleeing ? "rgba(255, 82, 82, 0.22)" : "rgba(255, 255, 255, 0.14)";
   ctx.beginPath();
-  ctx.arc(sheolSheep.x + sheolSheep.size / 2, sheolSheep.y + sheolSheep.size / 2, 15, 0, Math.PI * 2);
+  ctx.arc(sheolSheep.x + sheolSheep.size / 2, sheolSheep.y + sheolSheep.size / 2, 16, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.fillStyle = "#ffffff";
@@ -1857,6 +1867,7 @@ function updateSanityBorder() {
   canvas.style.boxShadow = `0 0 ${spread}px rgba(${red}, 0, 0, ${alpha.toFixed(2)})`;
 }
 
+// Watcher-style evasion AI for the sheep in Empty Sheol
 function updateEmptySheolCinematic(dt) {
   if (!isEmptySheolActive() || gameOver) return;
 
@@ -1874,8 +1885,9 @@ function updateEmptySheolCinematic(dt) {
     sheolSheep.fleeing = false;
     sheolSheep.eyesGathered = 0;
     sheolSheep.hesitateTimer = 0.25;
-    sheolSheep.evadeJukeTimer = 0;
-    sheolSheep.evadeJukeDir = 1;
+    sheolSheep.jukeTimer = 0;
+    sheolSheep.jukeOffset = 1.0;
+    sheolSheep.trail = [];
     sheolSheep.x = 55;
     sheolSheep.y = 200;
     spawnSheepEyeInArena();
@@ -1883,40 +1895,43 @@ function updateEmptySheolCinematic(dt) {
   }
 
   if (sheolSheep.active) {
-    const distPlayerToSheep = Math.hypot(player.x - sheolSheep.x, player.y - sheolSheep.y);
-    const beingChased = sheepChoiceReady && distPlayerToSheep < 165;
+    const dxToPlayer = player.x - sheolSheep.x;
+    const dyToPlayer = player.y - sheolSheep.y;
+    const distPlayerToSheep = Math.hypot(dxToPlayer, dyToPlayer) || 1;
+    const beingChased = sheepChoiceReady && distPlayerToSheep < 225;
     sheolSheep.fleeing = beingChased;
 
     if (beingChased) {
       sheolSheep.hesitateTimer = 0;
-      sheolSheep.evadeJukeTimer -= dt;
-      if (sheolSheep.evadeJukeTimer <= 0) {
-        sheolSheep.evadeJukeTimer = 0.28 + Math.random() * 0.35;
-        sheolSheep.evadeJukeDir = Math.random() < 0.5 ? 1 : -1;
+      sheolSheep.jukeTimer -= dt;
+      if (sheolSheep.jukeTimer <= 0) {
+        sheolSheep.jukeTimer = 0.22 + Math.random() * 0.32;
+        sheolSheep.jukeOffset = (Math.random() < 0.5 ? 1 : -1) * (1.25 + Math.random() * 1.85);
       }
 
-      const dx = sheolSheep.x - player.x;
-      const dy = sheolSheep.y - player.y;
-      const dist = Math.hypot(dx, dy) || 1;
-      let moveX = dx / dist;
-      let moveY = dy / dist;
+      let fleeX = -(dxToPlayer / distPlayerToSheep);
+      let fleeY = -(dyToPlayer / distPlayerToSheep);
 
-      const perpX = -moveY * sheolSheep.evadeJukeDir;
-      const perpY = moveX * sheolSheep.evadeJukeDir;
-      moveX += perpX * 0.75;
-      moveY += perpY * 0.75;
+      const perpX = -fleeY * sheolSheep.jukeOffset;
+      const perpY = fleeX * sheolSheep.jukeOffset;
+      fleeX += perpX * 0.9;
+      fleeY += perpY * 0.9;
 
-      if (sheolSheep.x < 55) moveX += 1.4;
-      if (sheolSheep.x > canvas.width - 75) moveX -= 1.4;
-      if (sheolSheep.y < 55) moveY += 1.4;
-      if (sheolSheep.y > canvas.height - 75) moveY -= 1.4;
+      // Steer away from arena edges so it does not get trapped against a wall
+      if (sheolSheep.x < 75) fleeX += 1.6;
+      if (sheolSheep.x > canvas.width - 95) fleeX -= 1.6;
+      if (sheolSheep.y < 75) fleeY += 1.6;
+      if (sheolSheep.y > canvas.height - 95) fleeY -= 1.6;
 
-      const norm = Math.hypot(moveX, moveY) || 1;
-      const evadeSpeed = distPlayerToSheep < 95 ? 245 : 195;
-      sheolSheep.x += (moveX / norm) * evadeSpeed * dt;
-      sheolSheep.y += (moveY / norm) * evadeSpeed * dt;
-      sheolSheep.x = Math.max(16, Math.min(canvas.width - 36, sheolSheep.x));
-      sheolSheep.y = Math.max(16, Math.min(canvas.height - 36, sheolSheep.y));
+      const fleeNorm = Math.hypot(fleeX, fleeY) || 1;
+      const evadeSpeed = distPlayerToSheep < 165 ? 430 : 320;
+      sheolSheep.x += (fleeX / fleeNorm) * evadeSpeed * dt;
+      sheolSheep.y += (fleeY / fleeNorm) * evadeSpeed * dt;
+      sheolSheep.x = Math.max(15, Math.min(canvas.width - 36, sheolSheep.x));
+      sheolSheep.y = Math.max(15, Math.min(canvas.height - 36, sheolSheep.y));
+
+      sheolSheep.trail.push({ x: sheolSheep.x, y: sheolSheep.y, life: 10 });
+      if (sheolSheep.trail.length > 7) sheolSheep.trail.shift();
     } else if (sheepEyeTarget.active) {
       if (sheolSheep.hesitateTimer > 0) {
         sheolSheep.hesitateTimer -= dt;
@@ -1925,17 +1940,22 @@ function updateEmptySheolCinematic(dt) {
         const dy = sheepEyeTarget.y - sheolSheep.y;
         const dist = Math.hypot(dx, dy);
         if (dist > 4) {
-          const gatherSpeed = 82;
+          const gatherSpeed = 105;
           sheolSheep.x += (dx / dist) * gatherSpeed * dt;
           sheolSheep.y += (dy / dist) * gatherSpeed * dt;
         } else {
           sheolSheep.eyesGathered++;
-          sheolSheep.hesitateTimer = 0.4;
+          sheolSheep.hesitateTimer = 0.35;
           playAbyssCollectSound();
           spawnSheepEyeInArena();
         }
       }
     }
+  }
+
+  for (let i = sheolSheep.trail.length - 1; i >= 0; i--) {
+    sheolSheep.trail[i].life--;
+    if (sheolSheep.trail[i].life <= 0) sheolSheep.trail.splice(i, 1);
   }
 
   if (doorCinematicActive) {
