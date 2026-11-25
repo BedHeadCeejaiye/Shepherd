@@ -201,19 +201,18 @@
     background: #5c4033;
     border-radius: 3px;
   }
-  /* Side margin strip + recorded whispers below the notch badge */
+  /* Unlabeled side margin strip on the parchment */
   #codex-margin {
-    width: 122px;
+    width: 46px;
     flex-shrink: 0;
     border-left: 1px dashed #3e2b22;
-    padding-left: 10px;
+    padding-left: 8px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
     gap: 10px;
     padding-top: 4px;
-    overflow-y: auto;
   }
   #codex-overlay.amber-tinted #codex-margin {
     border-left-color: #6e501c;
@@ -222,7 +221,7 @@
     font-size: 12px;
     letter-spacing: 1px;
     color: #4a372d;
-    padding: 3px 6px;
+    padding: 3px 4px;
     border: 1px solid #2b201a;
     background: rgba(10, 8, 7, 0.55);
     transition: all 0.25s ease;
@@ -232,48 +231,6 @@
     border-color: #8c6d1f;
     background: rgba(255, 215, 0, 0.08);
     text-shadow: 0 0 6px rgba(255, 215, 0, 0.55);
-  }
-  .whisper-notes {
-    width: 100%;
-    padding: 6px 8px;
-    border-top: 1px dashed #3e2b22;
-    background: rgba(10, 8, 7, 0.45);
-    font-size: 10px;
-    line-height: 1.35;
-    letter-spacing: 0.03em;
-  }
-  #codex-overlay.amber-tinted .whisper-notes {
-    border-top-color: #6e501c;
-  }
-  .whisper-notes-title {
-    font-size: 9px;
-    text-transform: uppercase;
-    color: #d4a373;
-    opacity: 0.85;
-    margin-bottom: 5px;
-    text-align: center;
-  }
-  #codex-overlay.amber-tinted .whisper-notes-title {
-    color: #f0c45a;
-  }
-  #whisper-notes-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .whisper-item {
-    font-family: 'Courier New', Courier, monospace;
-    color: #ff8a8a;
-    word-break: break-word;
-  }
-  .whisper-empty {
-    color: #8d6e63;
-    opacity: 0.7;
-    font-style: italic;
-    text-align: center;
   }
   #codex-footer {
     border-top: 1px dashed #5c4033;
@@ -371,15 +328,7 @@
       </div>
       <div id="codex-body">
         <div id="codex-content">Unraveling the parchment...</div>
-        <div id="codex-margin">
-          <div id="codex-margin-notches"></div>
-          <div id="whisper-notes" class="whisper-notes">
-            <div class="whisper-notes-title">Whispers</div>
-            <ul id="whisper-notes-list">
-              <li class="whisper-empty">None heard yet...</li>
-            </ul>
-          </div>
-        </div>
+        <div id="codex-margin"></div>
       </div>
       <div id="codex-footer">Press [C] or click [CLOSE] to return to the path.</div>
     </div>
@@ -411,12 +360,10 @@ const loreBox = document.getElementById("lore-box");
 const sigilsText = document.getElementById("sigils");
 const crownSigil = document.getElementById("crown-sigil");
 const volumeSlider = document.getElementById("volume-slider");
-const whisperNotesList = document.getElementById("whisper-notes-list");
 
 const codexOverlay = document.getElementById("codex-overlay");
 const codexContent = document.getElementById("codex-content");
 const codexMargin = document.getElementById("codex-margin");
-const codexMarginNotches = document.getElementById("codex-margin-notches");
 
 const consoleOverlay = document.getElementById("console-overlay");
 const consoleLog = document.getElementById("console-log");
@@ -456,8 +403,7 @@ function applyCodexHarvestTint() {
 }
 
 function renderCodexMargin() {
-  if (!codexMarginNotches) return;
-  codexMarginNotches.innerHTML = "";
+  codexMargin.innerHTML = "";
   for (const notch of CODEX_MARGIN_NOTCHES) {
     const isUnlocked = Boolean(unlocked[notch.key]);
     const el = document.createElement("div");
@@ -466,7 +412,7 @@ function renderCodexMargin() {
     if (isUnlocked && notch.unlockedHint) {
       el.title = notch.unlockedHint;
     }
-    codexMarginNotches.appendChild(el);
+    codexMargin.appendChild(el);
   }
 }
 
@@ -675,7 +621,7 @@ function updateAmbientSoundscape(proximity, isAbyss, isPit) {
     brookGain.gain.setTargetAtTime(loopFate.brokeLoop ? 0.045 : 0.08 * (1 - rot * 0.35), now, 0.4);
     if (brookFilter) {
       brookFilter.frequency.setTargetAtTime(420 + rot * 950, now, 0.4);
-      brookFilter.Q.setValueAtTime(0.7 + rot * 3.5, now, 0.4);
+      brookFilter.Q.setTargetAtTime(0.7 + rot * 3.5, now, 0.4);
     }
     abyssDroneGain.gain.setTargetAtTime(loopFate.brokeLoop ? 0.0 : rot * 0.22, now, 0.4);
     abyssOsc1.type = "triangle";
@@ -1163,30 +1109,12 @@ function getSigilLore(count, pitMode) {
   return pool[idx];
 }
 
-function renderWhisperNotes() {
-  if (!whisperNotesList) return;
-  whisperNotesList.innerHTML = "";
-
-  if (recordedWhispers.size === 0) {
-    const empty = document.createElement("li");
-    empty.className = "whisper-empty";
-    empty.textContent = "None heard yet...";
-    whisperNotesList.appendChild(empty);
-    return;
-  }
-
-  recordedWhispers.forEach((line) => {
-    const li = document.createElement("li");
-    li.className = "whisper-item";
-    li.textContent = line;
-    whisperNotesList.appendChild(li);
-  });
-}
-
 function recordWatcherWhisper(line) {
-  if (!line || recordedWhispers.has(line)) return;
+  if (!line) return;
   recordedWhispers.add(line);
-  renderWhisperNotes();
+  if (codexOpen) {
+    buildCodexManuscript();
+  }
 }
 
 function clearRecordedWhispers() {
@@ -1198,7 +1126,9 @@ function clearRecordedWhispers() {
     clearTimeout(cipherHintTimeoutId);
     cipherHintTimeoutId = null;
   }
-  renderWhisperNotes();
+  if (codexOpen) {
+    buildCodexManuscript();
+  }
 }
 
 function scheduleCipherHint() {
@@ -1251,70 +1181,82 @@ function logToConsole(text) {
   consoleLog.scrollTop = consoleLog.scrollHeight;
 }
 
+function buildCodexManuscript() {
+  let manuscript = "========================================\n";
+  manuscript += "      TORN MANUSCRIPT OF THE ARCHIVES    \n";
+  manuscript += "========================================\n\n";
+  
+  manuscript += "[ REALM I: EDEN'S GROVE // THE PASTORAL SANDBOX ]\n";
+  if (unlocked.eden) {
+    manuscript += "  'We walked upon carpets of seamless green, gathering sweet fruit under an unchanging sky. We thought this was creation itself—an endless loop of quiet grace. But the grass felt too soft, the horizon too abrupt. It was a cage woven from psalm and silence, keeping us blind to the machinery beneath.'\n\n";
+  } else {
+    manuscript += "  * [ The parchment is blank here. Complete the 20-fruit harvest in Eden to unlock this realm's truth... ] *\n\n";
+  }
+
+  manuscript += "[ REALM II: SHEOL // THE ABYSS ]\n";
+  if (unlocked.death || unlocked.revelation || savedSealsCount > 0) {
+    manuscript += "  'To fall through the bleeding anomaly is to enter the basement of the simulation. Here, the green illusion drops away, revealing raw hex code and weeping darkness. The Watcher hunts all who trespass here.'\n";
+    manuscript += "  --- EXCAVATED SEALS (" + Math.min(savedSealsCount, 6) + "/6) ---\n";
+    const unlockedSealsInAbyss = Math.min(savedSealsCount, 6);
+    for (let i = 0; i < 6; i++) {
+      if (i < unlockedSealsInAbyss) {
+        manuscript += abyssSealCodexEntries[i] + "\n";
+      } else {
+        manuscript += "  - Seal " + (i+1) + ": [Buried deeper in the abyss. Shatter more seals to decode.]\n";
+      }
+    }
+    manuscript += "\n";
+  } else {
+    manuscript += "  * [ The text is charred and unreadable. Perish or explore the abyss to reveal the realm's secrets... ] *\n\n";
+  }
+
+  manuscript += "[ REALM III: THE BOTTOMLESS PIT ]\n";
+  if (unlocked.trueEnd || savedSealsCount > 6) {
+    manuscript += "  'The deepest layer of all. Where rules break down entirely and the final crimson fruit ripens for those who conquered the lower dark.'\n";
+    manuscript += "  --- BOTTOMLESS PIT SEALS (" + Math.max(0, Math.min(savedSealsCount - 6, 3)) + "/3) ---\n";
+    for (let i = 6; i < 9; i++) {
+      if (savedSealsCount > i) {
+        manuscript += abyssSealCodexEntries[i] + "\n";
+      } else {
+        manuscript += "  - Seal " + (i+1) + ": [Locked inside the Bottomless Pit. Gather all 9 seals to decode.]\n";
+      }
+    }
+    manuscript += "\n";
+  } else {
+    manuscript += "  * [ Sealed with a heavy wax stamp. Unlock the abyss seals and enter the pit to decode this realm... ] *\n\n";
+  }
+
+  if (unlocked.trueEnd) {
+    manuscript += "[ TRUE ENDING // THE CHOICE OF THE CYCLE ]\n";
+    if (loopFate.brokeLoop) {
+      manuscript += "  'In Empty Sheol, a sheep appeared to repeat the old hunt. Instead of claiming another vessel, you stepped through the threshold and broke the cycle. The crown fell away, leaving the grove unbound.'\n\n";
+    } else if (loopFate.keptLoop) {
+      manuscript += "  'In Empty Sheol, a sheep appeared to repeat the old hunt. You chased it down and claimed the cycle once more—keeping the turning wheel alive.'\n\n";
+    } else {
+      manuscript += "  'You conquered the pit and faced the choice of the cycle itself.'\n\n";
+    }
+  }
+
+  manuscript += "[ RECORDED WHISPERS ]\n";
+  if (recordedWhispers.size > 0) {
+    recordedWhispers.forEach((line) => {
+      manuscript += "  * \"" + line + "\"\n";
+    });
+  } else {
+    manuscript += "  * [ No whispers heard in the dark yet... ]\n";
+  }
+  manuscript += "\n";
+
+  codexContent.innerText = manuscript;
+}
+
 function toggleCodex() {
   codexOpen = !codexOpen;
   if (codexOpen) {
     if (consoleOpen) toggleConsole();
-    
-    let manuscript = "========================================\n";
-    manuscript += "      TORN MANUSCRIPT OF THE ARCHIVES    \n";
-    manuscript += "========================================\n\n";
-    
-    manuscript += "[ REALM I: EDEN'S GROVE // THE PASTORAL SANDBOX ]\n";
-    if (unlocked.eden) {
-      manuscript += "  'We walked upon carpets of seamless green, gathering sweet fruit under an unchanging sky. We thought this was creation itself—an endless loop of quiet grace. But the grass felt too soft, the horizon too abrupt. It was a cage woven from psalm and silence, keeping us blind to the machinery beneath.'\n\n";
-    } else {
-      manuscript += "  * [ The parchment is blank here. Complete the 20-fruit harvest in Eden to unlock this realm's truth... ] *\n\n";
-    }
-
-    manuscript += "[ REALM II: SHEOL // THE ABYSS ]\n";
-    if (unlocked.death || unlocked.revelation || savedSealsCount > 0) {
-      manuscript += "  'To fall through the bleeding anomaly is to enter the basement of the simulation. Here, the green illusion drops away, revealing raw hex code and weeping darkness. The Watcher hunts all who trespass here.'\n";
-      manuscript += "  --- EXCAVATED SEALS (" + Math.min(savedSealsCount, 6) + "/6) ---\n";
-      const unlockedSealsInAbyss = Math.min(savedSealsCount, 6);
-      for (let i = 0; i < 6; i++) {
-        if (i < unlockedSealsInAbyss) {
-          manuscript += abyssSealCodexEntries[i] + "\n";
-        } else {
-          manuscript += "  - Seal " + (i+1) + ": [Buried deeper in the abyss. Shatter more seals to decode.]\n";
-        }
-      }
-      manuscript += "\n";
-    } else {
-      manuscript += "  * [ The text is charred and unreadable. Perish or explore the abyss to reveal the realm's secrets... ] *\n\n";
-    }
-
-    manuscript += "[ REALM III: THE BOTTOMLESS PIT ]\n";
-    if (unlocked.trueEnd || savedSealsCount > 6) {
-      manuscript += "  'The deepest layer of all. Where rules break down entirely and the final crimson fruit ripens for those who conquered the lower dark.'\n";
-      manuscript += "  --- BOTTOMLESS PIT SEALS (" + Math.max(0, Math.min(savedSealsCount - 6, 3)) + "/3) ---\n";
-      for (let i = 6; i < 9; i++) {
-        if (savedSealsCount > i) {
-          manuscript += abyssSealCodexEntries[i] + "\n";
-        } else {
-          manuscript += "  - Seal " + (i+1) + ": [Locked inside the Bottomless Pit. Gather all 9 seals to decode.]\n";
-        }
-      }
-      manuscript += "\n";
-    } else {
-      manuscript += "  * [ Sealed with a heavy wax stamp. Unlock the abyss seals and enter the pit to decode this realm... ] *\n\n";
-    }
-
-    if (unlocked.trueEnd) {
-      manuscript += "[ TRUE ENDING // THE CHOICE OF THE CYCLE ]\n";
-      if (loopFate.brokeLoop) {
-        manuscript += "  'In Empty Sheol, a sheep appeared to repeat the old hunt. Instead of claiming another vessel, you stepped through the threshold and broke the cycle. The crown fell away, leaving the grove unbound.'\n\n";
-      } else if (loopFate.keptLoop) {
-        manuscript += "  'In Empty Sheol, a sheep appeared to repeat the old hunt. You chased it down and claimed the cycle once more—keeping the turning wheel alive.'\n\n";
-      } else {
-        manuscript += "  'You conquered the pit and faced the choice of the cycle itself.'\n\n";
-      }
-    }
-
-    codexContent.innerText = manuscript;
+    buildCodexManuscript();
     applyCodexHarvestTint();
     renderCodexMargin();
-    renderWhisperNotes();
     codexOverlay.style.display = "flex";
   } else {
     codexOverlay.style.display = "none";
@@ -1743,7 +1685,6 @@ function respawnAfterRunEnd() {
   }
   
   updateSigilHUD();
-  renderWhisperNotes();
   spawnItem();
 }
 
