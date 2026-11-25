@@ -1558,7 +1558,7 @@ function drawTree(x, y, style = "round", rot = 0) {
   }
 }
 
-// Same size and exact interlocking 8-pointed star geometry as The Watcher
+// Same size and interlocking 8-pointed star geometry as The Watcher; outer ring shifts gold once Crowned Harvest is unlocked
 function drawPlayerWatcherRings(px, py, psize) {
   if (!hasCrownEquipped()) return;
 
@@ -1570,6 +1570,7 @@ function drawPlayerWatcherRings(px, py, psize) {
   ctx.lineWidth = 2;
   ctx.strokeRect(-18, -18, 36, 36);
   ctx.rotate(Math.PI / 4);
+  ctx.strokeStyle = unlocked.crownedHarvest ? "#ffd700" : "#ff1744";
   ctx.strokeRect(-18, -18, 36, 36);
 
   ctx.restore();
@@ -2243,7 +2244,7 @@ function draw() {
 
     ctx.fillStyle = godMode ? "#ffd700" : (isFlickering ? "#b0bec5" : "#ffffff");
     ctx.fillRect(player.x, player.y, player.size, player.size);
-    ctx.fillStyle = hasCrownEquipped() ? "#ff1744" : "#000000";
+    ctx.fillStyle = unlocked.crownedHarvest ? "#ffd700" : (hasCrownEquipped() ? "#ff1744" : "#000000");
     ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
 
     for (const tree of forestTrees) {
@@ -2315,6 +2316,10 @@ function draw() {
 
     ctx.fillStyle = isWatcherFleeing ? "#ff1744" : (godMode ? "#ffd700" : (doorCinematicActive ? "#ff8a80" : "#b0bec5"));
     ctx.fillRect(player.x, player.y, player.size, player.size);
+    if (unlocked.crownedHarvest && !isWatcherFleeing && !godMode && !doorCinematicActive) {
+      ctx.fillStyle = "#ffd700";
+      ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
+    }
 
     if (!emptySheol) {
       drawWatcher(watcher.x, watcher.y, watcher.size, isWatcherFleeing);
