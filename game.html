@@ -321,9 +321,15 @@ let loopFate = JSON.parse(localStorage.getItem("eden_abyss_loop_fate")) || {
 };
 
 function saveLoopFate(key) {
-  loopFate[key] = true;
+  loopFate.brokeLoop = (key === "brokeLoop");
+  loopFate.keptLoop = (key === "keptLoop");
   localStorage.setItem("eden_abyss_loop_fate", JSON.stringify(loopFate));
   updateSigilHUD();
+}
+
+function clearLoopFate() {
+  loopFate = { brokeLoop: false, keptLoop: false };
+  localStorage.setItem("eden_abyss_loop_fate", JSON.stringify(loopFate));
 }
 
 // ==================== EXPANDABLE EASTER EGG REGISTRY ====================
@@ -339,7 +345,7 @@ const EASTER_EGG_REGISTRY = {
 };
 
 function hasCrownEquipped() {
-  return Boolean(unlocked.trueEnd && !loopFate.brokeLoop);
+  return Boolean(unlocked.trueEnd && watcherDefeated && !loopFate.brokeLoop);
 }
 
 function triggerEasterEgg(eggId, options = {}) {
@@ -396,10 +402,10 @@ function lerpColor(hexA, hexB, t) {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
-// Eden rots only once you have consumed the Watcher and haven't broken the loop
+// Eden rots only while wearing the Watcher's crown and the loop hasn't been broken
 function getEdenRotLevel() {
   if (loopFate.brokeLoop) return 0.0;
-  return (unlocked.trueEnd || watcherDefeated) ? 0.75 : 0.0;
+  return hasCrownEquipped() ? 0.75 : 0.0;
 }
 
 // ==================== PROCEDURAL FOREST & REALM AUDIO ENGINE ====================
@@ -823,9 +829,9 @@ function updateSigilHUD() {
 
   if (loopFate.brokeLoop) {
     crownSigil.innerHTML = "<span style='color:#a8e6cf'>[UNBOUND]</span>";
-  } else if (loopFate.keptLoop) {
+  } else if (loopFate.keptLoop && watcherDefeated) {
     crownSigil.innerHTML = "<span style='color:#ff5252'>[CYCLE]</span>";
-  } else if (unlocked.trueEnd) {
+  } else if (hasCrownEquipped()) {
     crownSigil.innerHTML = "<span style='color:#ff1744'>[CROWN]</span>";
   } else {
     crownSigil.innerHTML = "";
@@ -854,7 +860,7 @@ let hasFlickeredBefore = false;
 let isWatcherFleeing = false;
 let fleeGraceTimer = 0;
 
-// Empty Sheol Door & Far-Left Sheep Cinematic state
+// Empty Sheol Door & Sheep Cinematic state
 const sheolDoor = {
   x: 544,
   y: 168,
@@ -863,7 +869,7 @@ const sheolDoor = {
 };
 
 const sheolSheep = {
-  x: -24,
+  x: 55,
   y: 200,
   size: 18,
   active: false,
@@ -871,13 +877,13 @@ const sheolSheep = {
   fleeing: false,
   eyesGathered: 0,
   hesitateTimer: 0,
-  wanderAngle: 0,
-  wobbleTimer: 0
+  evadeJukeTimer: 0,
+  evadeJukeDir: 1
 };
 
 const sheepEyeTarget = {
-  x: 110,
-  y: 140,
+  x: 300,
+  y: 200,
   size: 12,
   active: false
 };
@@ -887,9 +893,16 @@ let doorCinematicActive = false;
 let doorCinematicTimer = 0;
 let sheepChoiceReady = false;
 
-function spawnSheepEyeOnFarLeft() {
-  sheepEyeTarget.x = 32 + Math.random() * 145;
-  sheepEyeTarget.y = 45 + Math.random() * (canvas.height - 90);
+function spawnSheepEyeInArena() {
+  let attempts = 0;
+  while (attempts < 200) {
+    attempts++;
+    sheepEyeTarget.x = 45 + Math.random() * (canvas.width - 135);
+    sheepEyeTarget.y = 45 + Math.random() * (canvas.height - 90);
+    if (Math.hypot(sheepEyeTarget.x - sheolSheep.x, sheepEyeTarget.y - sheolSheep.y) > 85) {
+      break;
+    }
+  }
   sheepEyeTarget.active = true;
 }
 
@@ -942,7 +955,7 @@ function checkForbiddenFruitSpawn() {
   if (!isUpsideDown && !gameOver) {
     if (loopFate.brokeLoop) {
       setLore("The rings are gone. The grove stands quiet—uncorrupted, unscripted, and still.");
-    } else if (unlocked.trueEnd || watcherDefeated) {
+    } else if (hasCrownEquipped()) {
       setLore("You wear the Watcher's rings now. The grass beneath your feet withers at your presence.");
     } else if (forbiddenFruit.active) {
       setLore("The three seals are remembered. A crimson fruit has fallen from the eastern tree...");
@@ -1087,10 +1100,10 @@ function toggleCodex() {
 
     if (loopFate.brokeLoop) {
       manuscript += "[ EPILOGUE // THE SEVERED CYCLE ]\n";
-      manuscript += "  'A sheep entered the far side of Sheol, stumbling through the dark to gather eyes just as we once did. Instead of becoming its hunter, we stepped through the threshold and walked past the script. The rings fell away. Let the loop end where we left it.'\n\n";
+      manuscript += "  'A sheep entered Sheol, stumbling after scattered eyes and dodging your gaze just as you once did. Instead of becoming its hunter, you stepped through the threshold and walked past the script. The rings fell away. Let the loop end where you left it.'\n\n";
     } else if (loopFate.keptLoop) {
       manuscript += "[ EPILOGUE // THE REPEATED CYCLE ]\n";
-      manuscript += "  'A sheep entered Sheol, stumbling through the dark to gather eyes just as we once did. The old hunger answered. We crossed the dark to claim what we once were, keeping the machinery turning.'\n\n";
+      manuscript += "  'A sheep entered Sheol, stumbling after scattered eyes and dodging your gaze just as you once did. The old hunger answered. You ran it down to claim what you once were, keeping the machinery turning.'\n\n";
     }
 
     const discoveredEggKeys = Object.keys(EASTER_EGG_REGISTRY).filter((k) => foundEasterEggs[k]);
@@ -1109,6 +1122,24 @@ function toggleCodex() {
   }
 }
 
+function syncEdenRealmDisplay() {
+  if (isUpsideDown || gameOver) return;
+  const rot = getEdenRotLevel();
+  realmText.innerText = rot > 0 ? "REALM: CORRUPTED GROVE" : "REALM: EDEN'S GROVE";
+  realmText.style.color = rot > 0.45 ? "#d4a373" : "#a8e6cf";
+  loreBox.style.background = rot > 0.45 ? "#1c1614" : "#161a23";
+  loreBox.style.borderLeft = rot > 0.45 ? "4px solid #8d6e63" : "4px solid #558b2f";
+  if (rot > 0) {
+    setLore("You wear the Watcher's rings now. The grass beneath your feet withers at your presence.");
+  } else if (forbiddenFruit.active) {
+    setLore("The three seals are remembered. A crimson fruit has fallen from the eastern tree...");
+  } else {
+    setLore(loopFate.brokeLoop
+      ? "The rings are gone. The grove stands quiet—uncorrupted, unscripted, and still."
+      : '"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."');
+  }
+}
+
 function processCommand(cmd) {
   const parts = cmd.trim().toLowerCase().split(" ");
   const baseCmd = parts[0];
@@ -1123,7 +1154,7 @@ function processCommand(cmd) {
       " - abyss: Instantly triggers the standard Abyss realm (or Empty Sheol if defeated)\n" +
       " - trueabyss: Triggers the Bottomless Pit (or Empty Sheol if Watcher was consumed)\n" +
       " - flee: Triggers the True Ending Chase Phase (if Watcher is not yet consumed)\n" +
-      " - unlockall: Unlocks the 3 base seals & spawns the Crimson Fruit\n" +
+      " - unlockall: Unlocks the 3 base seals, restores The Watcher & spawns Crimson Fruit\n" +
       " - godmode: Toggles invulnerability against The Watcher\n" +
       " - speed <val>: Sets player speed (default: 360)\n" +
       " - teleport: Warps player to a safe random location\n" +
@@ -1132,33 +1163,22 @@ function processCommand(cmd) {
   } else if (baseCmd === "revive") {
     setWatcherDefeated(false);
     unlocked.trueEnd = false;
-    loopFate = { brokeLoop: false, keptLoop: false };
+    clearLoopFate();
     localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
-    localStorage.setItem("eden_abyss_loop_fate", JSON.stringify(loopFate));
     updateSigilHUD();
     checkForbiddenFruitSpawn();
+    syncEdenRealmDisplay();
     logToConsole("[SYS]: The Watcher has been restored and loop fate cleared.");
   } else if (baseCmd === "crown") {
-    unlocked.trueEnd = !unlocked.trueEnd;
-    if (unlocked.trueEnd) {
-      loopFate.brokeLoop = false;
-      localStorage.setItem("eden_abyss_loop_fate", JSON.stringify(loopFate));
-    }
+    const equipping = !hasCrownEquipped();
+    unlocked.trueEnd = equipping;
+    setWatcherDefeated(equipping);
+    clearLoopFate();
     localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
     updateSigilHUD();
-    if (!isUpsideDown && !gameOver) {
-      const rot = getEdenRotLevel();
-      realmText.innerText = rot > 0 ? "REALM: CORRUPTED GROVE" : "REALM: EDEN'S GROVE";
-      realmText.style.color = rot > 0.45 ? "#d4a373" : "#a8e6cf";
-      loreBox.style.background = rot > 0.45 ? "#1c1614" : "#161a23";
-      loreBox.style.borderLeft = rot > 0.45 ? "4px solid #8d6e63" : "4px solid #558b2f";
-      if (rot > 0) {
-        setLore("You wear the Watcher's rings now. The grass beneath your feet withers at your presence.");
-      } else {
-        setLore('"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."');
-      }
-    }
-    logToConsole(`[SYS]: Watcher's Crown is now ${unlocked.trueEnd ? "EQUIPPED" : "REMOVED"}.`);
+    checkForbiddenFruitSpawn();
+    syncEdenRealmDisplay();
+    logToConsole(`[SYS]: Watcher's Crown is now ${equipping ? "EQUIPPED" : "REMOVED (Watcher restored)"}.`);
   } else if (baseCmd === "reset") {
     localStorage.removeItem("eden_abyss_endings");
     localStorage.removeItem("eden_abyss_seals_count");
@@ -1205,12 +1225,15 @@ function processCommand(cmd) {
     unlocked.eden = true;
     unlocked.death = true;
     unlocked.revelation = true;
+    setWatcherDefeated(false);
+    clearLoopFate();
     savedSealsCount = Math.max(savedSealsCount, 6);
     localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
     localStorage.setItem("eden_abyss_seals_count", savedSealsCount);
     updateSigilHUD();
     checkForbiddenFruitSpawn();
-    logToConsole("[SYS]: Base 3 seals unlocked. Touch the Crimson Fruit in Eden to enter the Bottomless Pit and fight The Watcher.");
+    syncEdenRealmDisplay();
+    logToConsole("[SYS]: Base 3 seals unlocked, Watcher restored, and Crimson Fruit spawned in Eden.");
   } else if (baseCmd === "godmode") {
     godMode = !godMode;
     logToConsole(`[SYS]: Godmode is now ${godMode ? "ENABLED" : "DISABLED"}.`);
@@ -1223,11 +1246,12 @@ function processCommand(cmd) {
       logToConsole("[ERROR]: Usage: speed <number between 1 and 1000>");
     }
   } else if (baseCmd === "teleport") {
-    let valid = false;
-    while (!valid) {
+    let attempts = 0;
+    while (attempts < 200) {
+      attempts++;
       player.x = 40 + Math.random() * (canvas.width - 100);
       player.y = 40 + Math.random() * (canvas.height - 80);
-      valid = true;
+      let valid = true;
       if (!isUpsideDown) {
         for (const tree of forestTrees) {
           if (checkCollision(player.x, player.y, player.size, player.size, tree.x, tree.y, tree.width, tree.height)) {
@@ -1235,9 +1259,13 @@ function processCommand(cmd) {
             break;
           }
         }
+        if (checkCollision(player.x, player.y, player.size, player.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
+          valid = false;
+        }
       } else if (!watcherConsumed && Math.hypot(player.x - watcher.x, player.y - watcher.y) < 180) {
         valid = false;
       }
+      if (valid) break;
     }
     logToConsole(`[SYS]: Teleported player to (${Math.round(player.x)}, ${Math.round(player.y)}).`);
     toggleConsole();
@@ -1306,11 +1334,12 @@ window.addEventListener("keyup", (e) => {
 
 function spawnItem() {
   if (isUpsideDown && watcherConsumed) return;
-  let valid = false;
-  while (!valid) {
+  let attempts = 0;
+  while (attempts < 200) {
+    attempts++;
     item.x = 40 + Math.random() * (canvas.width - 120);
     item.y = 40 + Math.random() * (canvas.height - 80);
-    valid = true;
+    let valid = true;
     if (!isUpsideDown) {
       for (const tree of forestTrees) {
         if (checkCollision(item.x, item.y, item.size, item.size, tree.x, tree.y, tree.width, tree.height)) {
@@ -1326,6 +1355,7 @@ function spawnItem() {
         valid = false;
       }
     }
+    if (valid) break;
   }
 }
 
@@ -1373,15 +1403,15 @@ function triggerUpsideDown(trueMode = false) {
   doorCinematicActive = false;
   doorCinematicTimer = 0;
   sheepChoiceReady = false;
-  sheolSheep.x = -24;
+  sheolSheep.x = 55;
   sheolSheep.y = 200;
   sheolSheep.active = false;
   sheolSheep.entering = false;
   sheolSheep.fleeing = false;
   sheolSheep.eyesGathered = 0;
   sheolSheep.hesitateTimer = 0;
-  sheolSheep.wanderAngle = 0;
-  sheolSheep.wobbleTimer = 0;
+  sheolSheep.evadeJukeTimer = 0;
+  sheolSheep.evadeJukeDir = 1;
   sheepEyeTarget.active = false;
 
   player.x = 60;
@@ -1457,15 +1487,15 @@ function resetGame() {
   doorCinematicActive = false;
   doorCinematicTimer = 0;
   sheepChoiceReady = false;
-  sheolSheep.x = -24;
+  sheolSheep.x = 55;
   sheolSheep.y = 200;
   sheolSheep.active = false;
   sheolSheep.entering = false;
   sheolSheep.fleeing = false;
   sheolSheep.eyesGathered = 0;
   sheolSheep.hesitateTimer = 0;
-  sheolSheep.wanderAngle = 0;
-  sheolSheep.wobbleTimer = 0;
+  sheolSheep.evadeJukeTimer = 0;
+  sheolSheep.evadeJukeDir = 1;
   sheepEyeTarget.active = false;
   easterEggPulse = null;
   watcherJukeTimer = 0;
@@ -1578,21 +1608,17 @@ function drawSheolDoor() {
 
   ctx.save();
 
-  // Outer subtle crimson-white aura
   ctx.strokeStyle = `rgba(255, 82, 82, ${0.22 + pulse * 0.3})`;
   ctx.lineWidth = 1.5;
   ctx.strokeRect(sheolDoor.x - 5, sheolDoor.y - 5, sheolDoor.width + 10, sheolDoor.height + 10);
 
-  // Dark interior
   ctx.fillStyle = "#120305";
   ctx.fillRect(sheolDoor.x, sheolDoor.y, sheolDoor.width, sheolDoor.height);
 
-  // Crisp threshold frame
   ctx.strokeStyle = "#ff8a80";
   ctx.lineWidth = 2;
   ctx.strokeRect(sheolDoor.x, sheolDoor.y, sheolDoor.width, sheolDoor.height);
 
-  // Vertical slit & rotating diamond sigil inside the portal
   ctx.strokeStyle = `rgba(255, 255, 255, ${0.45 + pulse * 0.45})`;
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -1612,22 +1638,22 @@ function drawSheolDoor() {
 function drawSheolSheep() {
   if (!isUpsideDown || !watcherConsumed || !sheolSheep.active) return;
 
-  // Draw the eye/seal the sheep is clumsily gathering on the far left
+  // Draw the scattered eye the sheep is trying to gather
   if (sheepEyeTarget.active) {
     ctx.save();
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
-    ctx.ellipse(sheepEyeTarget.x + 6, sheepEyeTarget.y + 6, 9, 5, 0, 0, Math.PI * 2);
+    ctx.ellipse(sheepEyeTarget.x + 6, sheepEyeTarget.y + 6, 10, 6, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#ff0000";
     ctx.beginPath();
-    ctx.arc(sheepEyeTarget.x + 6, sheepEyeTarget.y + 6, 3, 0, Math.PI * 2);
+    ctx.arc(sheepEyeTarget.x + 6, sheepEyeTarget.y + 6, 3.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
 
   ctx.save();
-  ctx.fillStyle = "rgba(255, 255, 255, 0.14)";
+  ctx.fillStyle = sheolSheep.fleeing ? "rgba(255, 82, 82, 0.18)" : "rgba(255, 255, 255, 0.14)";
   ctx.beginPath();
   ctx.arc(sheolSheep.x + sheolSheep.size / 2, sheolSheep.y + sheolSheep.size / 2, 15, 0, Math.PI * 2);
   ctx.fill();
@@ -1692,62 +1718,75 @@ function updateEmptySheolCinematic(dt) {
   if (!doorCinematicPlayed && !doorCinematicActive && !sheepChoiceReady && distToDoor < 90) {
     doorCinematicPlayed = true;
     doorCinematicActive = true;
-    doorCinematicTimer = 1.9;
+    doorCinematicTimer = 1.65;
     sheolSheep.active = true;
     sheolSheep.entering = true;
     sheolSheep.fleeing = false;
     sheolSheep.eyesGathered = 0;
-    sheolSheep.hesitateTimer = 0.35;
-    sheolSheep.wanderAngle = (Math.random() - 0.5) * 1.1;
-    sheolSheep.wobbleTimer = 0.5;
-    sheolSheep.x = -20;
+    sheolSheep.hesitateTimer = 0.25;
+    sheolSheep.evadeJukeTimer = 0;
+    sheolSheep.evadeJukeDir = 1;
+    sheolSheep.x = 55;
     sheolSheep.y = 200;
-    spawnSheepEyeOnFarLeft();
-    setLore("A sudden stillness holds you near the threshold. On the far left, a hesitant sheep stumbles in and begins gathering eyes...");
+    spawnSheepEyeInArena();
+    setLore("A sudden stillness holds you near the threshold. A sheep appears in the dark and begins hunting scattered eyes...");
   }
 
-  // Move the sheep clumsily ("noob" movement: slow speed, periodic pauses, and aim wobble) on the far left
+  // Sheep behavior: gathers scattered eyes across the arena, and jukes away when you chase it
   if (sheolSheep.active) {
-    const maxFarLeftX = 195;
+    const distPlayerToSheep = Math.hypot(player.x - sheolSheep.x, player.y - sheolSheep.y);
+    const beingChased = sheepChoiceReady && distPlayerToSheep < 165;
+    sheolSheep.fleeing = beingChased;
 
-    if (sheolSheep.fleeing) {
+    if (beingChased) {
+      sheolSheep.hesitateTimer = 0;
+      sheolSheep.evadeJukeTimer -= dt;
+      if (sheolSheep.evadeJukeTimer <= 0) {
+        sheolSheep.evadeJukeTimer = 0.28 + Math.random() * 0.35;
+        sheolSheep.evadeJukeDir = Math.random() < 0.5 ? 1 : -1;
+      }
+
       const dx = sheolSheep.x - player.x;
       const dy = sheolSheep.y - player.y;
       const dist = Math.hypot(dx, dy) || 1;
-      sheolSheep.x = Math.max(20, Math.min(260, sheolSheep.x + (dx / dist) * 135 * dt));
-      sheolSheep.y = Math.max(25, Math.min(canvas.height - 45, sheolSheep.y + (dy / dist) * 135 * dt));
+      let moveX = dx / dist;
+      let moveY = dy / dist;
+
+      // Perpendicular juke like a player dodging the Watcher
+      const perpX = -moveY * sheolSheep.evadeJukeDir;
+      const perpY = moveX * sheolSheep.evadeJukeDir;
+      moveX += perpX * 0.75;
+      moveY += perpY * 0.75;
+
+      // Push away from arena edges so it doesn't get stuck in a corner
+      if (sheolSheep.x < 55) moveX += 1.4;
+      if (sheolSheep.x > canvas.width - 75) moveX -= 1.4;
+      if (sheolSheep.y < 55) moveY += 1.4;
+      if (sheolSheep.y > canvas.height - 75) moveY -= 1.4;
+
+      const norm = Math.hypot(moveX, moveY) || 1;
+      const evadeSpeed = distPlayerToSheep < 95 ? 245 : 195;
+      sheolSheep.x += (moveX / norm) * evadeSpeed * dt;
+      sheolSheep.y += (moveY / norm) * evadeSpeed * dt;
+      sheolSheep.x = Math.max(16, Math.min(canvas.width - 36, sheolSheep.x));
+      sheolSheep.y = Math.max(16, Math.min(canvas.height - 36, sheolSheep.y));
     } else if (sheepEyeTarget.active) {
       if (sheolSheep.hesitateTimer > 0) {
         sheolSheep.hesitateTimer -= dt;
       } else {
-        sheolSheep.wobbleTimer -= dt;
-        if (sheolSheep.wobbleTimer <= 0) {
-          sheolSheep.wobbleTimer = 0.45 + Math.random() * 0.65;
-          sheolSheep.wanderAngle = (Math.random() - 0.5) * 1.15;
-          // Occasionally freeze briefly like a nervous newcomer looking around
-          if (Math.random() < 0.35) {
-            sheolSheep.hesitateTimer = 0.25 + Math.random() * 0.45;
-          }
-        }
-
         const dx = sheepEyeTarget.x - sheolSheep.x;
         const dy = sheepEyeTarget.y - sheolSheep.y;
         const dist = Math.hypot(dx, dy);
-        if (dist > 5) {
-          const baseAngle = Math.atan2(dy, dx);
-          // Reduce aim drift once very close so it doesn't orbit forever
-          const driftScale = Math.min(1, dist / 65);
-          const moveAngle = baseAngle + sheolSheep.wanderAngle * driftScale;
-          const noobSpeed = 78;
-          const nextSheepX = sheolSheep.x + Math.cos(moveAngle) * noobSpeed * dt;
-          const nextSheepY = sheolSheep.y + Math.sin(moveAngle) * noobSpeed * dt;
-          sheolSheep.x = Math.max(18, Math.min(maxFarLeftX, nextSheepX));
-          sheolSheep.y = Math.max(24, Math.min(canvas.height - 42, nextSheepY));
+        if (dist > 4) {
+          // Slow/hesitant gather pace ("kinda noob") while collecting eyes
+          const gatherSpeed = 82;
+          sheolSheep.x += (dx / dist) * gatherSpeed * dt;
+          sheolSheep.y += (dy / dist) * gatherSpeed * dt;
         } else {
           sheolSheep.eyesGathered++;
-          sheolSheep.hesitateTimer = 0.45;
+          sheolSheep.hesitateTimer = 0.4;
           playAbyssCollectSound();
-          spawnSheepEyeOnFarLeft();
+          spawnSheepEyeInArena();
         }
       }
     }
@@ -1759,17 +1798,12 @@ function updateEmptySheolCinematic(dt) {
       doorCinematicActive = false;
       sheolSheep.entering = false;
       sheepChoiceReady = true;
-      setLore("YOUR LIMBS RELEASE. STEP THROUGH THE DOOR TO BREAK THE LOOP—OR CROSS THE DARK AND CLAIM THE SHEEP.");
+      setLore("YOUR LIMBS RELEASE. STEP THROUGH THE DOOR TO BREAK THE LOOP—OR CHASE DOWN THE SHEEP.");
     }
     return;
   }
 
   if (sheepChoiceReady && sheolSheep.active) {
-    const distPlayerToSheep = Math.hypot(player.x - sheolSheep.x, player.y - sheolSheep.y);
-    if (distPlayerToSheep < 120) {
-      sheolSheep.fleeing = true;
-    }
-
     if (!keptLoopEnding && checkCollision(
       player.x, player.y, player.size, player.size,
       sheolSheep.x, sheolSheep.y, sheolSheep.size, sheolSheep.size
@@ -1777,11 +1811,10 @@ function updateEmptySheolCinematic(dt) {
       keptLoopEnding = true;
       sheepEyeTarget.active = false;
       unlocked.trueEnd = true;
-      loopFate.brokeLoop = false;
       localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
       saveLoopFate("keptLoop");
       playDeathSound();
-      setLore("YOU CROSSED THE DARK AND CLAIMED THE SHEEP. THE CYCLE TURNS AGAIN.");
+      setLore("YOU RAN DOWN THE SHEEP AND CLAIMED IT. THE CYCLE TURNS AGAIN.");
       gameOver = true;
       shakeTime = 45;
       return;
