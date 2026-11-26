@@ -1097,6 +1097,9 @@ const sheolDoor = {
   height: 64
 };
 
+const DOOR_SAFE_MARGIN_X = 68;
+const DOOR_SAFE_MARGIN_Y = 34;
+
 const sheolSheep = {
   x: 55,
   y: 200,
@@ -1123,16 +1126,41 @@ let doorCinematicActive = false;
 let doorCinematicTimer = 0;
 let sheepChoiceReady = false;
 
+function isNearSheolDoor(x, y, padX = DOOR_SAFE_MARGIN_X, padY = DOOR_SAFE_MARGIN_Y) {
+  return (
+    x + padX >= sheolDoor.x &&
+    x - padX <= sheolDoor.x + sheolDoor.width &&
+    y + padY >= sheolDoor.y &&
+    y - padY <= sheolDoor.y + sheolDoor.height
+  );
+}
+
 function spawnSheepEyeInArena() {
   let attempts = 0;
-  while (attempts < 200) {
+  while (attempts < 250) {
     attempts++;
-    sheepEyeTarget.x = 45 + Math.random() * (canvas.width - 135);
-    sheepEyeTarget.y = 45 + Math.random() * (canvas.height - 90);
-    if (Math.hypot(sheepEyeTarget.x - sheolSheep.x, sheepEyeTarget.y - sheolSheep.y) > 95) {
+    const candidateX = 45 + Math.random() * (canvas.width - 135 - DOOR_SAFE_MARGIN_X);
+    const candidateY = 45 + Math.random() * (canvas.height - 90);
+
+    const farFromSheep = Math.hypot(candidateX - sheolSheep.x, candidateY - sheolSheep.y) > 95;
+    const safeFromDoor = !isNearSheolDoor(
+      candidateX + sheepEyeTarget.size / 2,
+      candidateY + sheepEyeTarget.size / 2,
+      DOOR_SAFE_MARGIN_X + 18,
+      DOOR_SAFE_MARGIN_Y + 14
+    );
+
+    if (farFromSheep && safeFromDoor) {
+      sheepEyeTarget.x = candidateX;
+      sheepEyeTarget.y = candidateY;
       break;
     }
   }
+
+  if (isNearSheolDoor(sheepEyeTarget.x + sheepEyeTarget.size / 2, sheepEyeTarget.y + sheepEyeTarget.size / 2, DOOR_SAFE_MARGIN_X + 18, DOOR_SAFE_MARGIN_Y + 14)) {
+    sheepEyeTarget.x = Math.min(sheepEyeTarget.x, sheolDoor.x - DOOR_SAFE_MARGIN_X - 24);
+  }
+
   sheepEyeTarget.active = true;
 }
 
@@ -2091,7 +2119,6 @@ function updateSanityBorder() {
   canvas.style.boxShadow = `0 0 ${spread}px rgba(${red}, 0, 0, ${alpha.toFixed(2)})`;
 }
 
-// Sheep moves at player speed (360) to pursue the eye/sigil; jukes at 410 when player gets close
 function updateEmptySheolCinematic(dt) {
   if (!isEmptySheolActive() || gameOver) return;
 
@@ -2123,17 +2150,21 @@ function updateEmptySheolCinematic(dt) {
       spawnSheepEyeInArena();
     }
 
-    const dxToPlayer = (player.x + player.size / 2) - (sheolSheep.x + sheolSheep.size / 2);
-    const dyToPlayer = (player.y + player.size / 2) - (sheolSheep.y + sheolSheep.size / 2);
+    const playerCenterX = player.x + player.size / 2;
+    const playerCenterY = player.y + player.size / 2;
+    const sheepCenterX = sheolSheep.x + sheolSheep.size / 2;
+    const sheepCenterY = sheolSheep.y + sheolSheep.size / 2;
+
+    const dxToPlayer = playerCenterX - sheepCenterX;
+    const dyToPlayer = playerCenterY - sheepCenterY;
     const distPlayerToSheep = Math.hypot(dxToPlayer, dyToPlayer) || 1;
 
-    const closeEvasion = sheepChoiceReady && distPlayerToSheep < 95;
+    const evadeRadius = 135;
+    const closeEvasion = sheepChoiceReady && distPlayerToSheep < evadeRadius;
     sheolSheep.fleeing = closeEvasion;
 
     const targetX = sheepEyeTarget.x + sheepEyeTarget.size / 2;
     const targetY = sheepEyeTarget.y + sheepEyeTarget.size / 2;
-    const sheepCenterX = sheolSheep.x + sheolSheep.size / 2;
-    const sheepCenterY = sheolSheep.y + sheolSheep.size / 2;
     const dxEye = targetX - sheepCenterX;
     const dyEye = targetY - sheepCenterY;
     const distEye = Math.hypot(dxEye, dyEye) || 1;
@@ -2147,31 +2178,44 @@ function updateEmptySheolCinematic(dt) {
       if (closeEvasion) {
         sheolSheep.jukeTimer -= dt;
         if (sheolSheep.jukeTimer <= 0) {
-          sheolSheep.jukeTimer = 0.16 + Math.random() * 0.2;
-          sheolSheep.jukeOffset = (Math.random() < 0.5 ? 1 : -1) * (1.2 + Math.random() * 1.4);
+          sheolSheep.jukeTimer = 0.18 + Math.random() * 0.18;
+          const sign = Math.random() < 0.5 ? 1 : -1;
+          sheolSheep.jukeOffset = sign * (1.1 + Math.random() * 1.1);
         }
 
+        const urgency = Math.min(1, (evadeRadius - distPlayerToSheep) / evadeRadius);
         const awayX = -(dxToPlayer / distPlayerToSheep);
         const awayY = -(dyToPlayer / distPlayerToSheep);
         const perpX = -awayY * sheolSheep.jukeOffset;
         const perpY = awayX * sheolSheep.jukeOffset;
 
-        dirX = dirX * 0.55 + awayX * 0.45 + perpX * 0.75;
-        dirY = dirY * 0.55 + awayY * 0.45 + perpY * 0.75;
+        dirX = (dxEye / distEye) * (0.45 * (1 - urgency)) + awayX * (0.85 + urgency * 0.45) + perpX * 0.65;
+        dirY = (dyEye / distEye) * (0.45 * (1 - urgency)) + awayY * (0.85 + urgency * 0.45) + perpY * 0.65;
       }
 
-      if (sheolSheep.x < 35) dirX += 1.2;
-      if (sheolSheep.x > canvas.width - 55) dirX -= 1.2;
-      if (sheolSheep.y < 35) dirY += 1.2;
-      if (sheolSheep.y > canvas.height - 55) dirY -= 1.2;
+      const doorCenterX = sheolDoor.x + sheolDoor.width / 2;
+      const doorCenterY = sheolDoor.y + sheolDoor.height / 2;
+      const dxDoor = sheepCenterX - doorCenterX;
+      const dyDoor = sheepCenterY - doorCenterY;
+      const distDoor = Math.hypot(dxDoor, dyDoor) || 1;
+      if (isNearSheolDoor(sheepCenterX, sheepCenterY, DOOR_SAFE_MARGIN_X + 10, DOOR_SAFE_MARGIN_Y + 10)) {
+        dirX += (dxDoor / distDoor) * 2.4;
+        dirY += (dyDoor / distDoor) * 2.4;
+      }
+
+      if (sheolSheep.x < 35) dirX += 1.1;
+      if (sheolSheep.x > sheolDoor.x - DOOR_SAFE_MARGIN_X - 16) dirX -= 1.5;
+      if (sheolSheep.y < 35) dirY += 1.1;
+      if (sheolSheep.y > canvas.height - 55) dirY -= 1.1;
 
       const norm = Math.hypot(dirX, dirY) || 1;
-      const moveSpeed = closeEvasion ? 410 : (doorCinematicActive ? 320 : player.speed);
-      const step = Math.min(moveSpeed * dt, closeEvasion ? moveSpeed * dt : distEye);
+      const moveSpeed = closeEvasion ? 375 : (doorCinematicActive ? 320 : player.speed * 0.95);
+      const step = Math.min(moveSpeed * dt, !closeEvasion ? distEye : moveSpeed * dt);
 
       sheolSheep.x += (dirX / norm) * step;
       sheolSheep.y += (dirY / norm) * step;
-      sheolSheep.x = Math.max(15, Math.min(canvas.width - 36, sheolSheep.x));
+
+      sheolSheep.x = Math.max(15, Math.min(sheolDoor.x - DOOR_SAFE_MARGIN_X - 8, sheolSheep.x));
       sheolSheep.y = Math.max(15, Math.min(canvas.height - 36, sheolSheep.y));
 
       if (closeEvasion) {
