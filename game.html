@@ -1882,7 +1882,7 @@ function updateSanityBorder() {
   canvas.style.boxShadow = `0 0 ${spread}px rgba(${red}, 0, 0, ${alpha.toFixed(2)})`;
 }
 
-// Sheep actively pursues the eye/sigil; only jukes when player gets very close
+// Sheep moves at player speed (360) to pursue the eye/sigil; jukes at 410 when player gets close
 function updateEmptySheolCinematic(dt) {
   if (!isEmptySheolActive() || gameOver) return;
 
@@ -1899,14 +1899,14 @@ function updateEmptySheolCinematic(dt) {
     sheolSheep.entering = true;
     sheolSheep.fleeing = false;
     sheolSheep.eyesGathered = 0;
-    sheolSheep.hesitateTimer = 0.2;
+    sheolSheep.hesitateTimer = 0.15;
     sheolSheep.jukeTimer = 0;
     sheolSheep.jukeOffset = 1.0;
     sheolSheep.trail = [];
     sheolSheep.x = 55;
     sheolSheep.y = 200;
     spawnSheepEyeInArena();
-    setLore("A sudden stillness holds you near the threshold. A sheep enters and moves directly toward the watching sigils...");
+    setLore("A sudden stillness holds you near the threshold. A sheep enters and darts toward the watching sigils...");
   }
 
   if (sheolSheep.active) {
@@ -1938,7 +1938,7 @@ function updateEmptySheolCinematic(dt) {
       if (closeEvasion) {
         sheolSheep.jukeTimer -= dt;
         if (sheolSheep.jukeTimer <= 0) {
-          sheolSheep.jukeTimer = 0.18 + Math.random() * 0.22;
+          sheolSheep.jukeTimer = 0.16 + Math.random() * 0.2;
           sheolSheep.jukeOffset = (Math.random() < 0.5 ? 1 : -1) * (1.2 + Math.random() * 1.4);
         }
 
@@ -1957,7 +1957,7 @@ function updateEmptySheolCinematic(dt) {
       if (sheolSheep.y > canvas.height - 55) dirY -= 1.2;
 
       const norm = Math.hypot(dirX, dirY) || 1;
-      const moveSpeed = closeEvasion ? 250 : (doorCinematicActive ? 155 : 185);
+      const moveSpeed = closeEvasion ? 410 : (doorCinematicActive ? 320 : player.speed);
       const step = Math.min(moveSpeed * dt, closeEvasion ? moveSpeed * dt : distEye);
 
       sheolSheep.x += (dirX / norm) * step;
@@ -1975,7 +1975,7 @@ function updateEmptySheolCinematic(dt) {
         sheepEyeTarget.x - 4, sheepEyeTarget.y - 4, sheepEyeTarget.size + 8, sheepEyeTarget.size + 8
       )) {
         sheolSheep.eyesGathered++;
-        sheolSheep.hesitateTimer = 0.28;
+        sheolSheep.hesitateTimer = 0.18;
         playAbyssCollectSound();
         spawnSheepEyeInArena();
         if (sheepChoiceReady) {
