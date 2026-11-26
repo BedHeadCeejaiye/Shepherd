@@ -201,9 +201,9 @@
     background: #5c4033;
     border-radius: 3px;
   }
-  /* Unlabeled side margin strip on the parchment */
+  /* Easter egg slot strip on the right margin of the parchment */
   #codex-margin {
-    width: 52px;
+    width: 56px;
     flex-shrink: 0;
     border-left: 1px dashed #3e2b22;
     padding-left: 8px;
@@ -224,15 +224,19 @@
     align-items: center;
     justify-content: center;
     padding: 2px;
-    border: 1px solid #2b201a;
-    background: rgba(10, 8, 7, 0.55);
+    border: 1px dashed #3a2b23;
+    background: rgba(8, 6, 5, 0.35);
     transition: all 0.25s ease;
     box-sizing: border-box;
+    color: #5c463b;
+    font-size: 10px;
+    letter-spacing: 0.5px;
   }
   .margin-notch.unlocked {
-    border-color: #8c6d1f;
+    border: 1px solid #8c6d1f;
     background: rgba(255, 215, 0, 0.08);
     box-shadow: 0 0 6px rgba(255, 215, 0, 0.25);
+    color: #ffd700;
   }
   .margin-notch canvas {
     border: none;
@@ -387,7 +391,7 @@ let loopFate = JSON.parse(localStorage.getItem("eden_abyss_loop_fate")) || {
   keptLoop: false
 };
 
-// Persistent secret badges (cleared only on full console 'reset')
+// Persistent secret easter egg badges (cleared only on full console 'reset')
 let badges = JSON.parse(localStorage.getItem("eden_abyss_badges")) || {
   crownedHarvest: false,
   archiveComplete: false,
@@ -396,6 +400,10 @@ let badges = JSON.parse(localStorage.getItem("eden_abyss_badges")) || {
 
 let cheatedThisRun = false;
 let diedToWatcherThisRun = false;
+let demonKingTriggerTimer = 0;
+let demonKingAnnouncedThisRun = false;
+
+const DEMON_KING_LORE = "Oh, Faker maybe in trouble here! Death Mark... tries to clean it up for Ryu. Oh, look at the cleanse! Look at the moves! FAKER, WHAT WAS THAT?!";
 
 function saveBadges() {
   localStorage.setItem("eden_abyss_badges", JSON.stringify(badges));
@@ -419,10 +427,6 @@ function saveLoopFate(key) {
   loopFate.keptLoop = (key === "keptLoop");
   localStorage.setItem("eden_abyss_loop_fate", JSON.stringify(loopFate));
 
-  if (!cheatedThisRun && !diedToWatcherThisRun) {
-    unlockBadge("demonKing");
-  }
-
   checkAllBadges();
   updateSigilHUD();
 }
@@ -432,14 +436,29 @@ function clearLoopFate() {
   localStorage.setItem("eden_abyss_loop_fate", JSON.stringify(loopFate));
 }
 
-// ==================== CODEX MARGIN BADGES / NOTCHES (UNLABELED) ====================
-function drawMarginBadgeIcon(bctx, key, isUnlocked) {
+function evaluateCorruptedEdenDemonKing() {
+  if (isUpsideDown || gameOver) return;
+  if (!hasCrownEquipped()) return;
+  if (cheatedThisRun || diedToWatcherThisRun) return;
+
+  unlockBadge("demonKing");
+  if (!demonKingAnnouncedThisRun) {
+    demonKingAnnouncedThisRun = true;
+    demonKingTriggerTimer = 2.4;
+    loreBox.style.color = "#ffd700";
+    loreBox.style.fontStyle = "normal";
+    setLore(DEMON_KING_LORE);
+  }
+}
+
+// ==================== CODEX EASTER EGG SLOTS ====================
+function drawMarginBadgeIcon(bctx, key) {
   const w = bctx.canvas.width;
   const h = bctx.canvas.height;
   bctx.clearRect(0, 0, w, h);
 
-  const strokeColor = isUnlocked ? "#ffd700" : "#4a372d";
-  const fillColor = isUnlocked ? "rgba(255, 215, 0, 0.16)" : "transparent";
+  const strokeColor = "#ffd700";
+  const fillColor = "rgba(255, 215, 0, 0.16)";
 
   bctx.save();
   bctx.strokeStyle = strokeColor;
@@ -457,7 +476,7 @@ function drawMarginBadgeIcon(bctx, key, isUnlocked) {
     bctx.lineTo(25, 8);
     bctx.lineTo(25, 16);
     bctx.closePath();
-    if (isUnlocked) bctx.fill();
+    bctx.fill();
     bctx.stroke();
 
     bctx.beginPath();
@@ -465,21 +484,19 @@ function drawMarginBadgeIcon(bctx, key, isUnlocked) {
     bctx.lineTo(25, 18);
     bctx.stroke();
   } else if (key === "archiveComplete") {
+    // Hidden pasture whisper / listening sigil
     bctx.beginPath();
-    bctx.moveTo(16, 4);
-    bctx.lineTo(25, 12);
-    bctx.lineTo(16, 20);
-    bctx.lineTo(7, 12);
-    bctx.closePath();
-    if (isUnlocked) bctx.fill();
+    bctx.arc(16, 11, 5.5, Math.PI * 0.85, Math.PI * 2.15);
     bctx.stroke();
 
     bctx.beginPath();
-    bctx.moveTo(16, 8);
-    bctx.lineTo(20, 12);
-    bctx.lineTo(16, 16);
-    bctx.lineTo(12, 12);
-    bctx.closePath();
+    bctx.arc(16, 11, 2.2, 0, Math.PI * 2);
+    bctx.fill();
+    bctx.stroke();
+
+    bctx.beginPath();
+    bctx.moveTo(11, 18);
+    bctx.lineTo(21, 18);
     bctx.stroke();
   } else if (key === "demonKing") {
     const leftX = 10.5;
@@ -489,27 +506,21 @@ function drawMarginBadgeIcon(bctx, key, isUnlocked) {
 
     bctx.beginPath();
     bctx.arc(leftX, lensY, radius, 0, Math.PI * 2);
-    if (isUnlocked) {
-      bctx.fillStyle = "rgba(255, 23, 68, 0.24)";
-      bctx.fill();
-    }
+    bctx.fillStyle = "rgba(255, 23, 68, 0.24)";
+    bctx.fill();
     bctx.stroke();
 
     bctx.beginPath();
     bctx.arc(rightX, lensY, radius, 0, Math.PI * 2);
-    if (isUnlocked) {
-      bctx.fillStyle = "rgba(255, 23, 68, 0.24)";
-      bctx.fill();
-    }
+    bctx.fillStyle = "rgba(255, 23, 68, 0.24)";
+    bctx.fill();
     bctx.stroke();
 
-    if (isUnlocked) {
-      bctx.fillStyle = "#ff1744";
-      bctx.beginPath();
-      bctx.arc(leftX - 1.2, lensY - 1.2, 1.1, 0, Math.PI * 2);
-      bctx.arc(rightX - 1.2, lensY - 1.2, 1.1, 0, Math.PI * 2);
-      bctx.fill();
-    }
+    bctx.fillStyle = "#ff1744";
+    bctx.beginPath();
+    bctx.arc(leftX - 1.2, lensY - 1.2, 1.1, 0, Math.PI * 2);
+    bctx.arc(rightX - 1.2, lensY - 1.2, 1.1, 0, Math.PI * 2);
+    bctx.fill();
 
     bctx.beginPath();
     bctx.moveTo(leftX + radius, lensY - 0.5);
@@ -527,15 +538,18 @@ function drawMarginBadgeIcon(bctx, key, isUnlocked) {
 const CODEX_MARGIN_NOTCHES = [
   {
     key: "crownedHarvest",
+    lockedHint: "Hidden Easter Egg — Uncover its condition in the grove.",
     unlockedHint: "Twenty fruits gathered beneath crimson rings."
   },
   {
     key: "archiveComplete",
-    unlockedHint: "Every realm and all fifteen seals uncovered in the manuscript."
+    lockedHint: "Hidden Easter Egg — Listen closely to what lingers in the stillness.",
+    unlockedHint: "Heard the whispers in the stillness of Eden and claimed fruit afterward."
   },
   {
     key: "demonKing",
-    unlockedHint: "The Unkillable Demon King — Reached the threshold without dying to the Watcher once."
+    lockedHint: "Hidden Easter Egg — Claim the crown and walk the corrupted grove untouched by death or command.",
+    unlockedHint: "The Unkillable Demon King — Returned to the corrupted grove wearing the crown without dying or using commands."
   }
 ];
 
@@ -552,17 +566,19 @@ function renderCodexMargin() {
     const isUnlocked = Boolean(badges[notch.key]);
     const el = document.createElement("div");
     el.className = "margin-notch" + (isUnlocked ? " unlocked" : "");
-    if (isUnlocked && notch.unlockedHint) {
-      el.title = notch.unlockedHint;
+    el.title = isUnlocked ? notch.unlockedHint : notch.lockedHint;
+
+    if (isUnlocked) {
+      const iconCanvas = document.createElement("canvas");
+      iconCanvas.width = 32;
+      iconCanvas.height = 22;
+      const bctx = iconCanvas.getContext("2d");
+      drawMarginBadgeIcon(bctx, notch.key);
+      el.appendChild(iconCanvas);
+    } else {
+      el.innerText = "[?]";
     }
 
-    const iconCanvas = document.createElement("canvas");
-    iconCanvas.width = 32;
-    iconCanvas.height = 22;
-    const bctx = iconCanvas.getContext("2d");
-    drawMarginBadgeIcon(bctx, notch.key, isUnlocked);
-
-    el.appendChild(iconCanvas);
     codexMargin.appendChild(el);
   }
 }
@@ -571,16 +587,7 @@ function checkAllBadges() {
   if (unlocked.crownedHarvest) {
     unlockBadge("crownedHarvest");
   }
-
-  if (
-    unlocked.eden &&
-    (unlocked.death || unlocked.revelation) &&
-    unlocked.trueEnd &&
-    savedSealsCount >= 6 &&
-    savedPitSealsCount >= 9
-  ) {
-    unlockBadge("archiveComplete");
-  }
+  evaluateCorruptedEdenDemonKing();
 }
 
 function hasCrownEquipped() {
@@ -1184,6 +1191,7 @@ let playerStillTimer = performance.now();
 let lastPlayerX = 50;
 let lastPlayerY = 200;
 let isWhispering = false;
+let heardPastureWhisperThisRun = false;
 let savedLoreText = '"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."';
 let phantomItem = { x: 0, y: 0, active: false, timer: 0 };
 
@@ -1211,6 +1219,9 @@ function checkForbiddenFruitSpawn() {
   unlocked = JSON.parse(localStorage.getItem("eden_abyss_endings")) || unlocked;
   forbiddenFruit.active = allBaseEndingsUnlocked() && !hasCrownEquipped();
   if (!isUpsideDown && !gameOver) {
+    evaluateCorruptedEdenDemonKing();
+    if (demonKingTriggerTimer > 0) return;
+
     if (loopFate.brokeLoop) {
       setLore("The rings are gone. The grove stands quiet—uncorrupted, unscripted, and still.");
     } else if (hasCrownEquipped()) {
@@ -1493,6 +1504,10 @@ function syncEdenRealmDisplay() {
   realmText.style.color = rot > 0.45 ? "#d4a373" : "#a8e6cf";
   loreBox.style.background = rot > 0.45 ? "#1c1614" : "#161a23";
   loreBox.style.borderLeft = rot > 0.45 ? "4px solid #8d6e63" : "4px solid #558b2f";
+
+  evaluateCorruptedEdenDemonKing();
+  if (demonKingTriggerTimer > 0) return;
+
   if (rot > 0) {
     setLore("You wear the Watcher's rings now. The grass beneath your feet withers at your presence.");
   } else if (forbiddenFruit.active) {
@@ -1775,6 +1790,7 @@ function triggerUpsideDown(trueMode = false) {
   crownedHarvestWon = false;
   trueWon = false;
   doorBreakWon = false;
+  demonKingTriggerTimer = 0;
   targetSeals = enterEmptySheol ? 0 : (allowPit ? 9 : 6);
   shakeTime = enterEmptySheol ? 18 : (allowPit ? 70 : 45);
   watcherStunTimer = enterEmptySheol ? 0 : 45;
@@ -1784,6 +1800,7 @@ function triggerUpsideDown(trueMode = false) {
   lastPlayerX = 60;
   lastPlayerY = 200;
   isWhispering = false;
+  heardPastureWhisperThisRun = false;
   isWatcherFleeing = false;
   fleeGraceTimer = 0;
   watcherJukeTimer = 0;
@@ -1875,6 +1892,8 @@ function respawnAfterRunEnd() {
   watcherConsumed = hasCrownEquipped();
   cheatedThisRun = false;
   diedToWatcherThisRun = false;
+  demonKingTriggerTimer = 0;
+  demonKingAnnouncedThisRun = false;
   score = 0;
   eyesCollected = 0;
   targetSeals = 6;
@@ -1907,6 +1926,7 @@ function respawnAfterRunEnd() {
   subliminalGlyphs = [];
   playerStillTimer = performance.now();
   isWhispering = false;
+  heardPastureWhisperThisRun = false;
   phantomItem.active = false;
   player.x = 50;
   player.y = 200;
@@ -1934,9 +1954,9 @@ function respawnAfterRunEnd() {
   
   loreBox.style.background = rot > 0.45 ? "#1c1614" : "#161a23";
   loreBox.style.borderLeft = rot > 0.45 ? "4px solid #8d6e63" : "4px solid #558b2f";
-  loreBox.style.color = "#e0e0e0";
+  loreBox.style.color = demonKingTriggerTimer > 0 ? "#ffd700" : "#e0e0e0";
   loreBox.style.fontStyle = "normal";
-  if (!forbiddenFruit.active && rot === 0) {
+  if (demonKingTriggerTimer <= 0 && !forbiddenFruit.active && rot === 0) {
     setLore(loopFate.brokeLoop
       ? "The rings are gone. The grove stands quiet—uncorrupted, unscripted, and still."
       : '"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."');
@@ -1993,6 +2013,26 @@ function drawPlayerWatcherRings(px, py, psize) {
   ctx.rotate(Math.PI / 4);
   ctx.strokeRect(-18, -18, 36, 36);
 
+  ctx.restore();
+}
+
+function drawDemonKingSideCallout() {
+  if (demonKingTriggerTimer <= 0 || isUpsideDown || gameOver) return;
+
+  const alpha = Math.min(1, demonKingTriggerTimer / 0.75);
+  const px = player.x + player.size / 2;
+  const py = player.y + player.size / 2;
+  const placeLeft = px > canvas.width - 140;
+  const textX = placeLeft ? px - 26 : px + 26;
+  const textY = Math.max(24, Math.min(canvas.height - 16, py - 4));
+
+  ctx.save();
+  ctx.font = "bold 11px Courier New";
+  ctx.textAlign = placeLeft ? "right" : "left";
+  ctx.fillStyle = `rgba(0, 0, 0, ${(0.72 * alpha).toFixed(2)})`;
+  ctx.fillText("all roads lead to me", textX + 1, textY + 1);
+  ctx.fillStyle = `rgba(255, 215, 0, ${alpha.toFixed(2)})`;
+  ctx.fillText("all roads lead to me", textX, textY);
   ctx.restore();
 }
 
@@ -2289,6 +2329,15 @@ function update(dt) {
   if (!isUpsideDown) {
     updateAmbientSoundscape(0, false, false);
     updateSanityBorder();
+    evaluateCorruptedEdenDemonKing();
+  }
+
+  if (demonKingTriggerTimer > 0) {
+    demonKingTriggerTimer = Math.max(0, demonKingTriggerTimer - dt);
+    if (demonKingTriggerTimer === 0 && !isUpsideDown && !gameOver) {
+      loreBox.style.color = "#e0e0e0";
+      setLore("You wear the Watcher's rings now. The grass beneath your feet withers at your presence.");
+    }
   }
 
   if (shakeTime > 0) shakeTime -= dt * 60;
@@ -2385,13 +2434,14 @@ function update(dt) {
     lastPlayerY = player.y;
     if (isWhispering) {
       isWhispering = false;
-      loreBox.style.color = isUpsideDown ? "#ff9999" : "#e0e0e0";
+      loreBox.style.color = isUpsideDown ? "#ff9999" : (demonKingTriggerTimer > 0 ? "#ffd700" : "#e0e0e0");
       loreBox.style.fontStyle = "normal";
       loreBox.innerText = savedLoreText;
     }
   } else if (!isUpsideDown && !doorCinematicActive && !emptySheol) {
     if (!isWhispering && (performance.now() - playerStillTimer > 10000)) {
       isWhispering = true;
+      heardPastureWhisperThisRun = true;
       loreBox.style.color = "#ff5252";
       loreBox.style.fontStyle = "italic";
       loreBox.innerText = edenWhispers[Math.floor(Math.random() * edenWhispers.length)];
@@ -2420,6 +2470,9 @@ function update(dt) {
   if (!isWatcherFleeing && checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
     if (!isUpsideDown) {
       playEdenCollectSound();
+      if (heardPastureWhisperThisRun && !cheatedThisRun) {
+        unlockBadge("archiveComplete");
+      }
       score++;
       scoreTextTop.innerText = `FRUITS GATHERED: ${score}`;
 
@@ -2712,6 +2765,8 @@ function draw() {
     ctx.fillRect(player.x, player.y, player.size, player.size);
     ctx.fillStyle = hasCrownEquipped() ? "#ff1744" : "#000000";
     ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
+
+    drawDemonKingSideCallout();
 
     for (const tree of forestTrees) {
       drawTree(tree.x, tree.y, tree.style, rot);
