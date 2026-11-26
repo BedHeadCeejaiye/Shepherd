@@ -484,7 +484,6 @@ function drawMarginBadgeIcon(bctx, key) {
     bctx.lineTo(25, 18);
     bctx.stroke();
   } else if (key === "archiveComplete") {
-    // Hidden pasture whisper / listening sigil
     bctx.beginPath();
     bctx.arc(16, 11, 5.5, Math.PI * 0.85, Math.PI * 2.15);
     bctx.stroke();
@@ -548,8 +547,8 @@ const CODEX_MARGIN_NOTCHES = [
   },
   {
     key: "demonKing",
-    lockedHint: "Hidden Easter Egg — Claim the crown and walk the corrupted grove untouched by death or command.",
-    unlockedHint: "The Unkillable Demon King — Returned to the corrupted grove wearing the crown without dying or using commands."
+    lockedHint: "Hidden Easter Egg — Claim the crown and walk the corrupted grove without dying in Abaddon or using commands.",
+    unlockedHint: "The Unkillable Demon King — Returned to the corrupted grove wearing the crown without dying in Abaddon or using commands."
   }
 ];
 
@@ -2641,7 +2640,9 @@ function update(dt) {
       player.x, player.y, player.size, player.size,
       watcher.x + pad, watcher.y + pad, watcher.size - pad * 2, watcher.size - pad * 2
     )) {
-      diedToWatcherThisRun = true;
+      if (isTrueAbyss) {
+        diedToWatcherThisRun = true;
+      }
       playDeathSound();
       gameOver = true;
       won = false;
