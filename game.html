@@ -891,6 +891,7 @@ let won = false;
 let edenWon = false;
 let crownedHarvestWon = false;
 let trueWon = false;
+let doorBreakWon = false;
 let watcherConsumed = watcherDefeated;
 let score = 0;
 let eyesCollected = 0;
@@ -1477,7 +1478,11 @@ window.addEventListener("keydown", (e) => {
   }
 
   if (gameOver && e.key.toLowerCase() === "r") {
-    respawnAfterRunEnd();
+    if (doorBreakWon) {
+      resetAfterTrueEndingChoice();
+    } else {
+      respawnAfterRunEnd();
+    }
   }
 });
 
@@ -1535,6 +1540,7 @@ function triggerUpsideDown(trueMode = false) {
   edenWon = false;
   crownedHarvestWon = false;
   trueWon = false;
+  doorBreakWon = false;
   targetSeals = enterEmptySheol ? 0 : (allowPit ? 9 : 6);
   shakeTime = enterEmptySheol ? 18 : (allowPit ? 70 : 45);
   watcherStunTimer = enterEmptySheol ? 0 : 45;
@@ -1632,6 +1638,7 @@ function respawnAfterRunEnd() {
   edenWon = false;
   crownedHarvestWon = false;
   trueWon = false;
+  doorBreakWon = false;
   watcherConsumed = hasCrownEquipped();
   score = 0;
   eyesCollected = 0;
@@ -1969,6 +1976,7 @@ function updateEmptySheolCinematic(dt) {
     return;
   }
 
+  // Touching the sheep resets immediately as before
   if (sheepChoiceReady && sheolSheep.active) {
     if (checkCollision(
       player.x, player.y, player.size, player.size,
@@ -1981,13 +1989,17 @@ function updateEmptySheolCinematic(dt) {
     }
   }
 
+  // Picking the door triggers the deathscreen overlay and resets on [R]
   if (checkCollision(
     player.x, player.y, player.size, player.size,
     sheolDoor.x, sheolDoor.y, sheolDoor.width, sheolDoor.height
   )) {
     saveEnding("trueEnd");
     playDoorStepSound();
-    resetAfterTrueEndingChoice();
+    gameOver = true;
+    doorBreakWon = true;
+    shakeTime = 0;
+    setLore("THRESHOLD CROSSED — 'The crown dissolves into static. Beyond the door, no script remains.'");
   }
 }
 
@@ -2507,7 +2519,22 @@ function draw() {
   if (gameOver) {
     ctx.textAlign = "center";
 
-    if (crownedHarvestWon) {
+    if (doorBreakWon) {
+      ctx.fillStyle = "rgba(4, 4, 6, 0.96)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 22px Courier New";
+      ctx.fillText("BEYOND THE THRESHOLD", canvas.width / 2, 145);
+      ctx.fillStyle = "#a8e6cf";
+      ctx.font = "13px Courier New";
+      ctx.fillText("You stepped through the door and surrendered the crown.", canvas.width / 2, 182);
+      ctx.fillStyle = "#888888";
+      ctx.font = "12px Courier New";
+      ctx.fillText("The cycle is broken. The seals return to sleep.", canvas.width / 2, 206);
+      ctx.fillStyle = "#ff8a80";
+      ctx.font = "12px Courier New";
+      ctx.fillText("Press [R] to awaken in an unbound grove.", canvas.width / 2, 246);
+    } else if (crownedHarvestWon) {
       ctx.fillStyle = "rgba(24, 18, 14, 0.94)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#ffd700";
