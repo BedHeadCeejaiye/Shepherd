@@ -378,10 +378,36 @@ let loopFate = JSON.parse(localStorage.getItem("eden_abyss_loop_fate")) || {
   keptLoop: false
 };
 
+// Tracks whether both cycle outcomes were reached without console cheats
+let cycleHistory = JSON.parse(localStorage.getItem("eden_abyss_cycle_history")) || {
+  everBrokeLoop: false,
+  everKeptLoop: false,
+  usedCheats: false
+};
+
+function saveCycleHistory() {
+  localStorage.setItem("eden_abyss_cycle_history", JSON.stringify(cycleHistory));
+}
+
+function markCheatUsed() {
+  if (!cycleHistory.usedCheats) {
+    cycleHistory.usedCheats = true;
+    saveCycleHistory();
+  }
+}
+
 function saveLoopFate(key) {
   loopFate.brokeLoop = (key === "brokeLoop");
   loopFate.keptLoop = (key === "keptLoop");
   localStorage.setItem("eden_abyss_loop_fate", JSON.stringify(loopFate));
+
+  if (!cycleHistory.usedCheats) {
+    if (key === "brokeLoop") cycleHistory.everBrokeLoop = true;
+    if (key === "keptLoop") cycleHistory.everKeptLoop = true;
+    saveCycleHistory();
+    checkAllBadges();
+  }
+
   updateSigilHUD();
 }
 
@@ -390,16 +416,27 @@ function clearLoopFate() {
   localStorage.setItem("eden_abyss_loop_fate", JSON.stringify(loopFate));
 }
 
-// ==================== CODEX MARGIN NOTCHES (UNLABELED) ====================
+// ==================== CODEX MARGIN BADGES / NOTCHES (UNLABELED) ====================
 const CODEX_MARGIN_NOTCHES = [
   {
     key: "crownedHarvest",
     unlockedHint: "Twenty fruits gathered beneath crimson rings."
+  },
+  {
+    key: "archiveComplete",
+    unlockedHint: "Every realm and all fifteen seals uncovered in the manuscript."
+  },
+  {
+    key: "trueMastery",
+    unlockedHint: "Both paths of the threshold walked without console intervention."
   }
 ];
 
 function applyCodexHarvestTint() {
-  codexOverlay.classList.toggle("amber-tinted", Boolean(unlocked.crownedHarvest));
+  const anyBadgeUnlocked = Boolean(
+    unlocked.crownedHarvest || unlocked.archiveComplete || unlocked.trueMastery
+  );
+  codexOverlay.classList.toggle("amber-tinted", anyBadgeUnlocked);
 }
 
 function renderCodexMargin() {
@@ -413,6 +450,40 @@ function renderCodexMargin() {
       el.title = notch.unlockedHint;
     }
     codexMargin.appendChild(el);
+  }
+}
+
+function checkAllBadges() {
+  let changed = false;
+
+  // Badge 2: Complete Codex (all realms + all 6 Sheol seals + all 9 Pit seals)
+  if (
+    !unlocked.archiveComplete &&
+    unlocked.eden &&
+    (unlocked.death || unlocked.revelation) &&
+    unlocked.trueEnd &&
+    savedSealsCount >= 6 &&
+    savedPitSealsCount >= 9
+  ) {
+    unlocked.archiveComplete = true;
+    changed = true;
+  }
+
+  // Badge 3: Complete both Empty Sheol endings without using console cheats
+  if (
+    !unlocked.trueMastery &&
+    !cycleHistory.usedCheats &&
+    cycleHistory.everBrokeLoop &&
+    cycleHistory.everKeptLoop
+  ) {
+    unlocked.trueMastery = true;
+    changed = true;
+  }
+
+  if (changed) {
+    localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
+    applyCodexHarvestTint();
+    if (codexOpen) renderCodexMargin();
   }
 }
 
@@ -807,7 +878,9 @@ let unlocked = JSON.parse(localStorage.getItem("eden_abyss_endings")) || {
   death: false,
   revelation: false,
   trueEnd: false,
-  crownedHarvest: false
+  crownedHarvest: false,
+  archiveComplete: false,
+  trueMastery: false
 };
 
 let savedSealsCount = parseInt(localStorage.getItem("eden_abyss_seals_count")) || 0;
@@ -817,6 +890,7 @@ let watcherDefeated = localStorage.getItem("eden_abyss_watcher_consumed") === "t
 function saveEnding(key) {
   unlocked[key] = true;
   localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
+  checkAllBadges();
   updateSigilHUD();
   applyCodexHarvestTint();
   if (codexOpen) renderCodexMargin();
@@ -836,6 +910,7 @@ function recordSealCollected(pitMode = false) {
     savedSealsCount = Math.min(6, savedSealsCount + 1);
     localStorage.setItem("eden_abyss_seals_count", savedSealsCount);
   }
+  checkAllBadges();
 }
 
 function allBaseEndingsUnlocked() {
@@ -848,7 +923,9 @@ function resetAfterTrueEndingChoice() {
     death: false,
     revelation: false,
     trueEnd: Boolean(unlocked.trueEnd),
-    crownedHarvest: Boolean(unlocked.crownedHarvest)
+    crownedHarvest: Boolean(unlocked.crownedHarvest),
+    archiveComplete: Boolean(unlocked.archiveComplete),
+    trueMastery: Boolean(unlocked.trueMastery)
   };
   localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
 
@@ -1097,12 +1174,18 @@ const watcherProximityWhispers = [
   "VJG RKV KU YQTM",
   "EQOG ENQUGT",
   "AQW ECPPV JKFG",
-  "VJG GAFG KU QPG"
+  "VJG GAFG KU QPG",
+  "K VCMG AQWT HNQEM",
+  "VQQU QWV VJG YGEV",
+  "PQ VJGCVJ KU UCHG",
+  "K VCMG AQWT TQQV",
+  "VJG UJGRJGTE UNGGVU"
 ];
 
 const cipherHints = {
   stage1: "Two steps forward shifts what is spoken. Step back two to hear it plain.",
-  stage2: "Look to the short words: step back two letters from each mark to read what watches you."
+  stage2: "Three whispers have found you. Count backward by two through the marks in the dark.",
+  stage3: "Every cipher turns on the same two-step lock. Unwind the letters and read what lingers beneath."
 };
 
 const edenWhispers = [
@@ -1147,7 +1230,7 @@ function scheduleCipherHint() {
     cipherHintTimeoutId = null;
   }
 
-  const nextStage = proximityWhisperCount >= 3 ? 2 : proximityWhisperCount >= 1 ? 1 : 0;
+  const nextStage = proximityWhisperCount >= 5 ? 3 : proximityWhisperCount >= 3 ? 2 : proximityWhisperCount >= 1 ? 1 : 0;
   if (nextStage <= cipherHintStage) return;
 
   cipherHintTimeoutId = setTimeout(() => {
@@ -1198,7 +1281,8 @@ function buildCodexManuscript() {
   
   manuscript += "[ REALM I: EDEN'S GROVE // THE PASTORAL SANDBOX ]\n";
   if (unlocked.eden) {
-    manuscript += "  'We walked upon carpets of seamless green, gathering sweet fruit under an unchanging sky. We thought this was creation itself—an endless loop of quiet grace. But the grass felt too soft, the horizon too abrupt. It was a cage woven from psalm and silence, keeping us blind to the machinery beneath.'\n\n";
+    manuscript += "  'We walked upon carpets of seamless green, gathering sweet fruit under an unchanging sky. We thought this was creation itself—an endless loop of quiet grace. But the grass felt too soft, the horizon too abrupt. It was a cage woven from psalm and silence, keeping us blind to the machinery beneath.'\n";
+    manuscript += "  >> [MARGIN CIPHER]: \"VJG RCUWTG KU C NQQR\"\n\n";
   } else {
     manuscript += "  * [ The parchment is blank here. Complete the 20-fruit harvest in Eden to unlock this realm's truth... ] *\n\n";
   }
@@ -1214,6 +1298,9 @@ function buildCodexManuscript() {
       } else {
         manuscript += "  - Seal " + (i+1) + ": [Buried deeper in the abyss. Shatter more seals to decode.]\n";
       }
+    }
+    if (unlockedSealsInAbyss >= 3) {
+      manuscript += "  >> [MARGIN CIPHER]: \"PQV CNN RCVJU NCF VQ VJG VJTQPG\"\n";
     }
     manuscript += "\n";
   } else {
@@ -1232,6 +1319,9 @@ function buildCodexManuscript() {
         manuscript += "  - Pit Seal " + (i+1) + ": [Locked inside the Bottomless Pit. Shatter more seals to decode.]\n";
       }
     }
+    if (unlockedPitSeals >= 5) {
+      manuscript += "  >> [MARGIN CIPHER]: \"VJG ETQYP EQWPVU YJCV AQV NQUG\"\n";
+    }
     manuscript += "\n";
   } else {
     manuscript += "  * [ Sealed with a heavy wax stamp. Enter the pit and shatter its seals to decode this realm... ] *\n\n";
@@ -1240,12 +1330,13 @@ function buildCodexManuscript() {
   if (unlocked.trueEnd) {
     manuscript += "[ TRUE ENDING // THE CHOICE OF THE CYCLE ]\n";
     if (loopFate.brokeLoop) {
-      manuscript += "  'In Empty Sheol, a sheep appeared to repeat the old hunt. Instead of claiming another vessel, you stepped through the threshold and broke the cycle. The crown fell away, leaving the grove unbound.'\n\n";
+      manuscript += "  'In Empty Sheol, a sheep appeared to repeat the old hunt. Instead of claiming another vessel, you stepped through the threshold and broke the cycle. The crown fell away, leaving the grove unbound.'\n";
     } else if (loopFate.keptLoop) {
-      manuscript += "  'In Empty Sheol, a sheep appeared to repeat the old hunt. You chased it down and claimed the cycle once more—keeping the turning wheel alive.'\n\n";
+      manuscript += "  'In Empty Sheol, a sheep appeared to repeat the old hunt. You chased it down and claimed the cycle once more—keeping the turning wheel alive.'\n";
     } else {
-      manuscript += "  'You conquered the pit and faced the choice of the cycle itself.'\n\n";
+      manuscript += "  'You conquered the pit and faced the choice of the cycle itself.'\n";
     }
+    manuscript += "  >> [MARGIN CIPHER]: \"DGHQTG VJG FQQT YCU C UJGRJGTE\"\n\n";
   }
 
   manuscript += "[ RECORDED WHISPERS ]\n";
@@ -1265,6 +1356,7 @@ function toggleCodex() {
   codexOpen = !codexOpen;
   if (codexOpen) {
     if (consoleOpen) toggleConsole();
+    checkAllBadges();
     buildCodexManuscript();
     applyCodexHarvestTint();
     renderCodexMargin();
@@ -1302,7 +1394,7 @@ function processCommand(cmd) {
     logToConsole(
       "AVAILABLE COMMANDS:\n" +
       " - crown: Toggles holding the Watcher's power & rings (required for Empty Sheol)\n" +
-      " - reset: Wipes all unlocked endings, fate, notches, whispers, and revives The Watcher\n" +
+      " - reset: Wipes all unlocked endings, badges, fate, whispers, and revives The Watcher\n" +
       " - revive: Restores The Watcher so you can fight/consume it again\n" +
       " - abyss: Enters Sheol (Empty Sheol if Crown is worn, active hunt otherwise)\n" +
       " - trueabyss: Triggers the Bottomless Pit (or Empty Sheol if Crown is worn)\n" +
@@ -1314,6 +1406,7 @@ function processCommand(cmd) {
       " - clear: Clears console terminal log"
     );
   } else if (baseCmd === "revive") {
+    markCheatUsed();
     setWatcherDefeated(false);
     clearLoopFate();
     updateSigilHUD();
@@ -1321,6 +1414,7 @@ function processCommand(cmd) {
     syncEdenRealmDisplay();
     logToConsole("[SYS]: The Watcher has been restored and Crown removed.");
   } else if (baseCmd === "crown") {
+    markCheatUsed();
     const equipping = !hasCrownEquipped();
     setWatcherDefeated(equipping);
     clearLoopFate();
@@ -1334,8 +1428,18 @@ function processCommand(cmd) {
     localStorage.removeItem("eden_abyss_pit_seals_count");
     localStorage.removeItem("eden_abyss_watcher_consumed");
     localStorage.removeItem("eden_abyss_loop_fate");
-    unlocked = { eden: false, death: false, revelation: false, trueEnd: false, crownedHarvest: false };
+    localStorage.removeItem("eden_abyss_cycle_history");
+    unlocked = {
+      eden: false,
+      death: false,
+      revelation: false,
+      trueEnd: false,
+      crownedHarvest: false,
+      archiveComplete: false,
+      trueMastery: false
+    };
     loopFate = { brokeLoop: false, keptLoop: false };
+    cycleHistory = { everBrokeLoop: false, everKeptLoop: false, usedCheats: false };
     savedSealsCount = 0;
     savedPitSealsCount = 0;
     setWatcherDefeated(false);
@@ -1343,14 +1447,16 @@ function processCommand(cmd) {
     updateSigilHUD();
     clearRecordedWhispers();
     resetGame();
-    logToConsole("[SYS]: All endings, fate, margin notches, whispers, and The Watcher restored.");
+    logToConsole("[SYS]: All endings, badges, fate, whispers, and The Watcher restored.");
   } else if (baseCmd === "abyss") {
+    markCheatUsed();
     triggerUpsideDown(false);
     logToConsole(hasCrownEquipped()
       ? "[SYS]: Crown equipped -> Entered Empty Sheol."
       : "[SYS]: No Crown -> Forced entry into active Sheol // The Abyss.");
     toggleConsole();
   } else if (baseCmd === "trueabyss") {
+    markCheatUsed();
     if (hasCrownEquipped()) {
       triggerUpsideDown(false);
       logToConsole("[SYS]: Crown equipped -> Entered Empty Sheol.");
@@ -1360,6 +1466,7 @@ function processCommand(cmd) {
     }
     toggleConsole();
   } else if (baseCmd === "flee") {
+    markCheatUsed();
     if (!hasCrownEquipped()) {
       setWatcherDefeated(false);
       triggerUpsideDown(true);
@@ -1376,6 +1483,7 @@ function processCommand(cmd) {
     }
     toggleConsole();
   } else if (baseCmd === "unlockall") {
+    markCheatUsed();
     unlocked.eden = true;
     unlocked.death = true;
     unlocked.revelation = true;
@@ -1389,17 +1497,20 @@ function processCommand(cmd) {
     syncEdenRealmDisplay();
     logToConsole("[SYS]: Base 3 seals unlocked, Watcher restored, and Crimson Fruit spawned in Eden.");
   } else if (baseCmd === "godmode") {
+    markCheatUsed();
     godMode = !godMode;
     logToConsole(`[SYS]: Godmode is now ${godMode ? "ENABLED" : "DISABLED"}.`);
   } else if (baseCmd === "speed") {
     const val = parseFloat(parts[1]);
     if (!isNaN(val) && val > 0 && val <= 1000) {
+      markCheatUsed();
       player.speed = val;
       logToConsole(`[SYS]: Player speed set to ${val}.`);
     } else {
       logToConsole("[ERROR]: Usage: speed <number between 1 and 1000>");
     }
   } else if (baseCmd === "teleport") {
+    markCheatUsed();
     let attempts = 0;
     while (attempts < 200) {
       attempts++;
@@ -1596,7 +1707,7 @@ function triggerUpsideDown(trueMode = false) {
   loreBox.style.borderLeft = "4px solid #ff0000";
   loreBox.style.color = "#ff9999";
   setLore(enterEmptySheol
-    ? "THE DARKNESS ANSWERS TO YOUR CROWN NOW. A THRESHOLD PULSES ON THE FAR RIGHT."
+    ? "THE DARKNESS ANSWERS TO YOUR CROWN NOW. A THRESHOLD PULSES IN THE EAST."
     : (allowPit
       ? "YOU CONSUMED THE CORE OF KNOWLEDGE. THE ABYSS KNOWS YOUR NAME."
       : "YOU TOUCHED THE FORBIDDEN ROOT. THE SKY HAS ROLLED UP LIKE A SCROLL."));
@@ -1996,30 +2107,32 @@ function updateEmptySheolCinematic(dt) {
       doorCinematicActive = false;
       sheolSheep.entering = false;
       sheepChoiceReady = true;
-      setLore("YOUR LIMBS RELEASE. THE SHEEP PURSUES THE SIGILS — STEP THROUGH THE DOOR OR INTERCEPT IT.");
+      setLore("YOUR LIMBS RELEASE. THE SHEEP HUNTS THE SIGILS WHILE THE THRESHOLD STANDS OPEN.");
     }
     return;
   }
 
-  // Touching the sheep resets immediately as before
+  // Touching the sheep claims the loop
   if (sheepChoiceReady && sheolSheep.active) {
     if (checkCollision(
       player.x, player.y, player.size, player.size,
       sheolSheep.x, sheolSheep.y, sheolSheep.size, sheolSheep.size
     )) {
       saveEnding("trueEnd");
+      saveLoopFate("keptLoop");
       playTrueEndingSound();
       resetAfterTrueEndingChoice();
       return;
     }
   }
 
-  // Picking the door triggers the deathscreen overlay and resets on [R]
+  // Stepping through the door breaks the loop
   if (checkCollision(
     player.x, player.y, player.size, player.size,
     sheolDoor.x, sheolDoor.y, sheolDoor.width, sheolDoor.height
   )) {
     saveEnding("trueEnd");
+    saveLoopFate("brokeLoop");
     playDoorStepSound();
     gameOver = true;
     doorBreakWon = true;
@@ -2045,15 +2158,15 @@ function update(dt) {
 
   const emptySheol = isEmptySheolActive();
 
-  if (isUpsideDown && Math.random() < (emptySheol ? 0.025 : 0.04)) {
+  if (isUpsideDown && Math.random() < (emptySheol ? 0.035 : 0.05)) {
     const texts = emptySheol
-      ? ["0x7FFF", "THRONE_EMPTY", "UNBOUND?", "SHEOL", "WATCHING"]
-      : ["0x7FFF", "ABANDON", "SEAL_BROKEN", "NULL_PTR", "WATCHED", "SHEOL"];
+      ? ["0x7FFF", "THRONE_EMPTY", "DGHQTG VJG FQQT YCU C UJGRJGTE", "SHEOL", "VJG RCUWTG KU C NQQR"]
+      : ["0x7FFF", "ABANDON", "VJG RCUWTG KU C NQQR", "VJG ETQYP EQWPVU YJCV AQV NQUG", "GFCN YCU PQV C BKVJ", "SHEOL"];
     subliminalGlyphs.push({
       text: texts[Math.floor(Math.random() * texts.length)],
-      x: Math.random() * (canvas.width - 60),
+      x: Math.random() * (canvas.width - 140),
       y: Math.random() * (canvas.height - 30),
-      life: 25
+      life: 32
     });
   }
   for (let i = subliminalGlyphs.length - 1; i >= 0; i--) {
