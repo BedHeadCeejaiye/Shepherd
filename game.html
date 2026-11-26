@@ -2021,17 +2021,17 @@ function drawDemonKingSideCallout() {
   const alpha = Math.min(1, demonKingTriggerTimer / 0.75);
   const px = player.x + player.size / 2;
   const py = player.y + player.size / 2;
-  const placeLeft = px > canvas.width - 140;
+  const placeLeft = px > canvas.width - 195;
   const textX = placeLeft ? px - 26 : px + 26;
   const textY = Math.max(24, Math.min(canvas.height - 16, py - 4));
 
   ctx.save();
-  ctx.font = "bold 11px Courier New";
+  ctx.font = "bold 11px 'Malgun Gothic', 'Apple SD Gothic Neo', 'Courier New', monospace";
   ctx.textAlign = placeLeft ? "right" : "left";
   ctx.fillStyle = `rgba(0, 0, 0, ${(0.72 * alpha).toFixed(2)})`;
-  ctx.fillText("all roads lead to me", textX + 1, textY + 1);
+  ctx.fillText("모든 길은 결국 저를 통합니다", textX + 1, textY + 1);
   ctx.fillStyle = `rgba(255, 215, 0, ${alpha.toFixed(2)})`;
-  ctx.fillText("all roads lead to me", textX, textY);
+  ctx.fillText("모든 길은 결국 저를 통합니다", textX, textY);
   ctx.restore();
 }
 
