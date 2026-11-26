@@ -589,7 +589,7 @@ function playFlickerSound() {
 
     const noiseGain = audioCtx.createGain();
     noiseGain.gain.setValueAtTime(0.28, now);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+    noiseGain.exponentialRampToValueAtTime(0.001, now + 0.14);
 
     noise.connect(filter);
     filter.connect(noiseGain);
@@ -603,7 +603,7 @@ function playFlickerSound() {
     sub.frequency.exponentialRampToValueAtTime(32, now + 0.15);
 
     subGain.gain.setValueAtTime(0.25, now);
-    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+    subGain.exponentialRampToValueAtTime(0.001, now + 0.16);
 
     sub.connect(subGain);
     subGain.connect(masterGain);
@@ -2602,7 +2602,7 @@ function draw() {
       ctx.fillStyle = "#a8e6cf";
       ctx.font = "11px Courier New";
       ctx.fillText("memory_addr: 0x7fff5fbff800 -- status: WATCHER CONSUMED", canvas.width / 2, 165);
-      ctx.fillText("You wear its crown now. Return to Eden or Sheol and face the choice.", canvas.width / 2, 195);
+      ctx.fillText("You wear its crown now. The weight settles over everything.", canvas.width / 2, 195);
       
       ctx.fillStyle = "#888888";
       ctx.font = "12px Courier New";
