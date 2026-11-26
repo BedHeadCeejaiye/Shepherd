@@ -1131,6 +1131,8 @@ let doorCinematicPlayed = false;
 let doorCinematicActive = false;
 let doorCinematicTimer = 0;
 let sheepChoiceReady = false;
+let sheepThoughtCooldown = 0;
+let sheepThoughtIndex = 0;
 
 function isNearSheolDoor(x, y, padX = DOOR_SAFE_MARGIN_X, padY = DOOR_SAFE_MARGIN_Y) {
   return (
@@ -1817,6 +1819,8 @@ function triggerUpsideDown(trueMode = false) {
   doorCinematicActive = false;
   doorCinematicTimer = 0;
   sheepChoiceReady = false;
+  sheepThoughtCooldown = 0;
+  sheepThoughtIndex = 0;
   sheolSheep.x = 55;
   sheolSheep.y = 200;
   sheolSheep.active = false;
@@ -1908,6 +1912,8 @@ function respawnAfterRunEnd() {
   doorCinematicActive = false;
   doorCinematicTimer = 0;
   sheepChoiceReady = false;
+  sheepThoughtCooldown = 0;
+  sheepThoughtIndex = 0;
   sheolSheep.x = 55;
   sheolSheep.y = 200;
   sheolSheep.active = false;
@@ -2161,6 +2167,10 @@ function updateSanityBorder() {
 function updateEmptySheolCinematic(dt) {
   if (!isEmptySheolActive() || gameOver) return;
 
+  if (sheepThoughtCooldown > 0) {
+    sheepThoughtCooldown = Math.max(0, sheepThoughtCooldown - dt);
+  }
+
   const distToDoor = Math.hypot(
     (player.x + player.size / 2) - (sheolDoor.x + sheolDoor.width / 2),
     (player.y + player.size / 2) - (sheolDoor.y + sheolDoor.height / 2)
@@ -2270,15 +2280,16 @@ function updateEmptySheolCinematic(dt) {
         sheolSheep.hesitateTimer = 0.18;
         playAbyssCollectSound();
         spawnSheepEyeInArena();
-        if (sheepChoiceReady) {
+        if (sheepChoiceReady && sheepThoughtCooldown <= 0) {
           const sheepDecisionThoughts = [
             "Every sigil it swallows pulls the old wheel tighter—if I catch it, the watch endures and nothing dies unremembered... yet the eastern door hums like an unmade promise.",
             "To hold the sheep is to keep a name etched into the ash and command the dark; to cross the threshold is to unmake the throne and step where no memory follows.",
             "The sheep gathers what once kept me awake—if I claim it, the vigil has meaning and I remain its sovereign, though the door offers quiet beyond every turning.",
             "How strange to stand torn between keeping a crown that keeps the world breathing, or letting the dark go cold so the loop can finally end."
           ];
-          const thoughtIdx = (sheolSheep.eyesGathered - 1) % sheepDecisionThoughts.length;
-          setLore(sheepDecisionThoughts[thoughtIdx]);
+          setLore(sheepDecisionThoughts[sheepThoughtIndex % sheepDecisionThoughts.length]);
+          sheepThoughtIndex++;
+          sheepThoughtCooldown = 6.5;
         }
       }
     }
@@ -2295,6 +2306,7 @@ function updateEmptySheolCinematic(dt) {
       doorCinematicActive = false;
       sheolSheep.entering = false;
       sheepChoiceReady = true;
+      sheepThoughtCooldown = 4.5;
       setLore("YOUR LIMBS RELEASE. THE SHEEP HUNTS THE SIGILS WHILE THE THRESHOLD STANDS OPEN.");
     }
     return;
