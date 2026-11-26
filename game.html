@@ -203,7 +203,7 @@
   }
   /* Unlabeled side margin strip on the parchment */
   #codex-margin {
-    width: 46px;
+    width: 52px;
     flex-shrink: 0;
     border-left: 1px dashed #3e2b22;
     padding-left: 8px;
@@ -218,19 +218,28 @@
     border-left-color: #6e501c;
   }
   .margin-notch {
-    font-size: 12px;
-    letter-spacing: 1px;
-    color: #4a372d;
-    padding: 3px 4px;
+    width: 38px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
     border: 1px solid #2b201a;
     background: rgba(10, 8, 7, 0.55);
     transition: all 0.25s ease;
+    box-sizing: border-box;
   }
   .margin-notch.unlocked {
-    color: #ffd700;
     border-color: #8c6d1f;
     background: rgba(255, 215, 0, 0.08);
-    text-shadow: 0 0 6px rgba(255, 215, 0, 0.55);
+    box-shadow: 0 0 6px rgba(255, 215, 0, 0.25);
+  }
+  .margin-notch canvas {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+    border-radius: 0;
+    transition: none;
   }
   #codex-footer {
     border-top: 1px dashed #5c4033;
@@ -378,22 +387,31 @@ let loopFate = JSON.parse(localStorage.getItem("eden_abyss_loop_fate")) || {
   keptLoop: false
 };
 
-// Tracks whether both cycle outcomes were reached without console cheats
-let cycleHistory = JSON.parse(localStorage.getItem("eden_abyss_cycle_history")) || {
-  everBrokeLoop: false,
-  everKeptLoop: false,
-  usedCheats: false
+// Persistent secret badges (cleared only on full console 'reset')
+let badges = JSON.parse(localStorage.getItem("eden_abyss_badges")) || {
+  crownedHarvest: false,
+  archiveComplete: false,
+  demonKing: false
 };
 
-function saveCycleHistory() {
-  localStorage.setItem("eden_abyss_cycle_history", JSON.stringify(cycleHistory));
+let cheatedThisRun = false;
+let diedToWatcherThisRun = false;
+
+function saveBadges() {
+  localStorage.setItem("eden_abyss_badges", JSON.stringify(badges));
+  applyCodexHarvestTint();
+  if (codexOpen) renderCodexMargin();
+}
+
+function unlockBadge(key) {
+  if (!badges[key]) {
+    badges[key] = true;
+    saveBadges();
+  }
 }
 
 function markCheatUsed() {
-  if (!cycleHistory.usedCheats) {
-    cycleHistory.usedCheats = true;
-    saveCycleHistory();
-  }
+  cheatedThisRun = true;
 }
 
 function saveLoopFate(key) {
@@ -401,13 +419,11 @@ function saveLoopFate(key) {
   loopFate.keptLoop = (key === "keptLoop");
   localStorage.setItem("eden_abyss_loop_fate", JSON.stringify(loopFate));
 
-  if (!cycleHistory.usedCheats) {
-    if (key === "brokeLoop") cycleHistory.everBrokeLoop = true;
-    if (key === "keptLoop") cycleHistory.everKeptLoop = true;
-    saveCycleHistory();
-    checkAllBadges();
+  if (!cheatedThisRun && !diedToWatcherThisRun) {
+    unlockBadge("demonKing");
   }
 
+  checkAllBadges();
   updateSigilHUD();
 }
 
@@ -417,6 +433,97 @@ function clearLoopFate() {
 }
 
 // ==================== CODEX MARGIN BADGES / NOTCHES (UNLABELED) ====================
+function drawMarginBadgeIcon(bctx, key, isUnlocked) {
+  const w = bctx.canvas.width;
+  const h = bctx.canvas.height;
+  bctx.clearRect(0, 0, w, h);
+
+  const strokeColor = isUnlocked ? "#ffd700" : "#4a372d";
+  const fillColor = isUnlocked ? "rgba(255, 215, 0, 0.16)" : "transparent";
+
+  bctx.save();
+  bctx.strokeStyle = strokeColor;
+  bctx.fillStyle = fillColor;
+  bctx.lineWidth = 1.5;
+  bctx.lineJoin = "miter";
+
+  if (key === "crownedHarvest") {
+    bctx.beginPath();
+    bctx.moveTo(7, 16);
+    bctx.lineTo(7, 8);
+    bctx.lineTo(12, 12);
+    bctx.lineTo(16, 6);
+    bctx.lineTo(20, 12);
+    bctx.lineTo(25, 8);
+    bctx.lineTo(25, 16);
+    bctx.closePath();
+    if (isUnlocked) bctx.fill();
+    bctx.stroke();
+
+    bctx.beginPath();
+    bctx.moveTo(7, 18);
+    bctx.lineTo(25, 18);
+    bctx.stroke();
+  } else if (key === "archiveComplete") {
+    bctx.beginPath();
+    bctx.moveTo(16, 4);
+    bctx.lineTo(25, 12);
+    bctx.lineTo(16, 20);
+    bctx.lineTo(7, 12);
+    bctx.closePath();
+    if (isUnlocked) bctx.fill();
+    bctx.stroke();
+
+    bctx.beginPath();
+    bctx.moveTo(16, 8);
+    bctx.lineTo(20, 12);
+    bctx.lineTo(16, 16);
+    bctx.lineTo(12, 12);
+    bctx.closePath();
+    bctx.stroke();
+  } else if (key === "demonKing") {
+    const leftX = 10.5;
+    const rightX = 21.5;
+    const lensY = 12.5;
+    const radius = 4.3;
+
+    bctx.beginPath();
+    bctx.arc(leftX, lensY, radius, 0, Math.PI * 2);
+    if (isUnlocked) {
+      bctx.fillStyle = "rgba(255, 23, 68, 0.24)";
+      bctx.fill();
+    }
+    bctx.stroke();
+
+    bctx.beginPath();
+    bctx.arc(rightX, lensY, radius, 0, Math.PI * 2);
+    if (isUnlocked) {
+      bctx.fillStyle = "rgba(255, 23, 68, 0.24)";
+      bctx.fill();
+    }
+    bctx.stroke();
+
+    if (isUnlocked) {
+      bctx.fillStyle = "#ff1744";
+      bctx.beginPath();
+      bctx.arc(leftX - 1.2, lensY - 1.2, 1.1, 0, Math.PI * 2);
+      bctx.arc(rightX - 1.2, lensY - 1.2, 1.1, 0, Math.PI * 2);
+      bctx.fill();
+    }
+
+    bctx.beginPath();
+    bctx.moveTo(leftX + radius, lensY - 0.5);
+    bctx.quadraticCurveTo(16, lensY - 2.2, rightX - radius, lensY - 0.5);
+    bctx.moveTo(6.2, lensY - 0.5);
+    bctx.lineTo(4.5, lensY - 2.5);
+    bctx.moveTo(25.8, lensY - 0.5);
+    bctx.lineTo(27.5, lensY - 2.5);
+    bctx.stroke();
+  }
+
+  bctx.restore();
+}
+
 const CODEX_MARGIN_NOTCHES = [
   {
     key: "crownedHarvest",
@@ -427,14 +534,14 @@ const CODEX_MARGIN_NOTCHES = [
     unlockedHint: "Every realm and all fifteen seals uncovered in the manuscript."
   },
   {
-    key: "trueMastery",
-    unlockedHint: "Both paths of the threshold walked without console intervention."
+    key: "demonKing",
+    unlockedHint: "The Unkillable Demon King — Reached the threshold without dying to the Watcher once."
   }
 ];
 
 function applyCodexHarvestTint() {
   const anyBadgeUnlocked = Boolean(
-    unlocked.crownedHarvest || unlocked.archiveComplete || unlocked.trueMastery
+    badges.crownedHarvest || badges.archiveComplete || badges.demonKing
   );
   codexOverlay.classList.toggle("amber-tinted", anyBadgeUnlocked);
 }
@@ -442,48 +549,37 @@ function applyCodexHarvestTint() {
 function renderCodexMargin() {
   codexMargin.innerHTML = "";
   for (const notch of CODEX_MARGIN_NOTCHES) {
-    const isUnlocked = Boolean(unlocked[notch.key]);
+    const isUnlocked = Boolean(badges[notch.key]);
     const el = document.createElement("div");
     el.className = "margin-notch" + (isUnlocked ? " unlocked" : "");
-    el.textContent = isUnlocked ? "[*]" : "[ ]";
     if (isUnlocked && notch.unlockedHint) {
       el.title = notch.unlockedHint;
     }
+
+    const iconCanvas = document.createElement("canvas");
+    iconCanvas.width = 32;
+    iconCanvas.height = 22;
+    const bctx = iconCanvas.getContext("2d");
+    drawMarginBadgeIcon(bctx, notch.key, isUnlocked);
+
+    el.appendChild(iconCanvas);
     codexMargin.appendChild(el);
   }
 }
 
 function checkAllBadges() {
-  let changed = false;
+  if (unlocked.crownedHarvest) {
+    unlockBadge("crownedHarvest");
+  }
 
-  // Badge 2: Complete Codex (all realms + all 6 Sheol seals + all 9 Pit seals)
   if (
-    !unlocked.archiveComplete &&
     unlocked.eden &&
     (unlocked.death || unlocked.revelation) &&
     unlocked.trueEnd &&
     savedSealsCount >= 6 &&
     savedPitSealsCount >= 9
   ) {
-    unlocked.archiveComplete = true;
-    changed = true;
-  }
-
-  // Badge 3: Complete both Empty Sheol endings without using console cheats
-  if (
-    !unlocked.trueMastery &&
-    !cycleHistory.usedCheats &&
-    cycleHistory.everBrokeLoop &&
-    cycleHistory.everKeptLoop
-  ) {
-    unlocked.trueMastery = true;
-    changed = true;
-  }
-
-  if (changed) {
-    localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
-    applyCodexHarvestTint();
-    if (codexOpen) renderCodexMargin();
+    unlockBadge("archiveComplete");
   }
 }
 
@@ -660,7 +756,7 @@ function playFlickerSound() {
 
     const noiseGain = audioCtx.createGain();
     noiseGain.gain.setValueAtTime(0.28, now);
-    noiseGain.exponentialRampToValueAtTime(0.001, now + 0.14);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
 
     noise.connect(filter);
     filter.connect(noiseGain);
@@ -674,7 +770,7 @@ function playFlickerSound() {
     sub.frequency.exponentialRampToValueAtTime(32, now + 0.15);
 
     subGain.gain.setValueAtTime(0.25, now);
-    subGain.exponentialRampToValueAtTime(0.001, now + 0.16);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
 
     sub.connect(subGain);
     subGain.connect(masterGain);
@@ -692,7 +788,7 @@ function updateAmbientSoundscape(proximity, isAbyss, isPit) {
     brookGain.gain.setTargetAtTime(loopFate.brokeLoop ? 0.045 : 0.08 * (1 - rot * 0.35), now, 0.4);
     if (brookFilter) {
       brookFilter.frequency.setTargetAtTime(420 + rot * 950, now, 0.4);
-      brookFilter.Q.setTargetAtTime(0.7 + rot * 3.5, now, 0.4);
+      brookFilter.Q.setValueAtTime(0.7 + rot * 3.5, now, 0.4);
     }
     abyssDroneGain.gain.setTargetAtTime(loopFate.brokeLoop ? 0.0 : rot * 0.22, now, 0.4);
     abyssOsc1.type = "triangle";
@@ -880,7 +976,7 @@ let unlocked = JSON.parse(localStorage.getItem("eden_abyss_endings")) || {
   trueEnd: false,
   crownedHarvest: false,
   archiveComplete: false,
-  trueMastery: false
+  demonKing: false
 };
 
 let savedSealsCount = parseInt(localStorage.getItem("eden_abyss_seals_count")) || 0;
@@ -925,7 +1021,7 @@ function resetAfterTrueEndingChoice() {
     trueEnd: Boolean(unlocked.trueEnd),
     crownedHarvest: Boolean(unlocked.crownedHarvest),
     archiveComplete: Boolean(unlocked.archiveComplete),
-    trueMastery: Boolean(unlocked.trueMastery)
+    demonKing: Boolean(unlocked.demonKing)
   };
   localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
 
@@ -1428,7 +1524,7 @@ function processCommand(cmd) {
     localStorage.removeItem("eden_abyss_pit_seals_count");
     localStorage.removeItem("eden_abyss_watcher_consumed");
     localStorage.removeItem("eden_abyss_loop_fate");
-    localStorage.removeItem("eden_abyss_cycle_history");
+    localStorage.removeItem("eden_abyss_badges");
     unlocked = {
       eden: false,
       death: false,
@@ -1436,14 +1532,19 @@ function processCommand(cmd) {
       trueEnd: false,
       crownedHarvest: false,
       archiveComplete: false,
-      trueMastery: false
+      demonKing: false
+    };
+    badges = {
+      crownedHarvest: false,
+      archiveComplete: false,
+      demonKing: false
     };
     loopFate = { brokeLoop: false, keptLoop: false };
-    cycleHistory = { everBrokeLoop: false, everKeptLoop: false, usedCheats: false };
     savedSealsCount = 0;
     savedPitSealsCount = 0;
     setWatcherDefeated(false);
     applyCodexHarvestTint();
+    renderCodexMargin();
     updateSigilHUD();
     clearRecordedWhispers();
     resetGame();
@@ -1749,6 +1850,8 @@ function respawnAfterRunEnd() {
   trueWon = false;
   doorBreakWon = false;
   watcherConsumed = hasCrownEquipped();
+  cheatedThisRun = false;
+  diedToWatcherThisRun = false;
   score = 0;
   eyesCollected = 0;
   targetSeals = 6;
@@ -2446,6 +2549,7 @@ function update(dt) {
       player.x, player.y, player.size, player.size,
       watcher.x + pad, watcher.y + pad, watcher.size - pad * 2, watcher.size - pad * 2
     )) {
+      diedToWatcherThisRun = true;
       playDeathSound();
       gameOver = true;
       won = false;
