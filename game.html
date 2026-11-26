@@ -956,7 +956,7 @@ function spawnSheepEyeInArena() {
     attempts++;
     sheepEyeTarget.x = 45 + Math.random() * (canvas.width - 135);
     sheepEyeTarget.y = 45 + Math.random() * (canvas.height - 90);
-    if (Math.hypot(sheepEyeTarget.x - sheolSheep.x, sheepEyeTarget.y - sheolSheep.y) > 85) {
+    if (Math.hypot(sheepEyeTarget.x - sheolSheep.x, sheepEyeTarget.y - sheolSheep.y) > 95) {
       break;
     }
   }
@@ -1079,7 +1079,6 @@ const sheolSigilLore = [
   "THE SIXTH SIGIL BREAKS. THE THRESHOLD OF SHEOL OPENS."
 ];
 
-// Sigils 1-8: Bible verses; Sigil 9: sets up the chase before catching the Watcher
 const pitSigilLore = [
   "PSALM 88:6 — 'You have put me in the lowest pit, in the darkest depths.'",
   "JOB 28:14 — 'The deep says, It is not in me; and the sea says, It is not with me.'",
@@ -1627,7 +1626,6 @@ function handleAnomalyTouch() {
   }
 }
 
-// Preserves recordedWhispers across deaths/replays; full reset clears them
 function respawnAfterRunEnd() {
   for (const k in keys) keys[k] = false;
 
@@ -1802,20 +1800,30 @@ function drawSheolSheep() {
 
   for (const t of sheolSheep.trail) {
     ctx.save();
-    ctx.fillStyle = `rgba(255, 255, 255, ${(t.life / 16) * 0.25})`;
+    ctx.fillStyle = `rgba(255, 255, 255, ${(t.life / 8) * 0.25})`;
     ctx.fillRect(t.x, t.y, sheolSheep.size, sheolSheep.size);
     ctx.restore();
   }
 
   if (sheepEyeTarget.active) {
+    const ex = sheepEyeTarget.x + sheepEyeTarget.size / 2;
+    const ey = sheepEyeTarget.y + sheepEyeTarget.size / 2;
+    const pulse = (Math.sin(glitchTimer * 0.14) + 1) / 2;
+
     ctx.save();
+    ctx.strokeStyle = `rgba(255, 23, 68, ${0.25 + pulse * 0.35})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(ex, ey, 13 + pulse * 3, 0, Math.PI * 2);
+    ctx.stroke();
+
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
-    ctx.ellipse(sheepEyeTarget.x + 6, sheepEyeTarget.y + 6, 10, 6, 0, 0, Math.PI * 2);
+    ctx.ellipse(ex, ey, 10, 6, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#ff0000";
     ctx.beginPath();
-    ctx.arc(sheepEyeTarget.x + 6, sheepEyeTarget.y + 6, 3.5, 0, Math.PI * 2);
+    ctx.arc(ex, ey, 3.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -1874,7 +1882,7 @@ function updateSanityBorder() {
   canvas.style.boxShadow = `0 0 ${spread}px rgba(${red}, 0, 0, ${alpha.toFixed(2)})`;
 }
 
-// Watcher-style evasion AI for the sheep in Empty Sheol
+// Sheep actively pursues the eye/sigil; only jukes when player gets very close
 function updateEmptySheolCinematic(dt) {
   if (!isEmptySheolActive() || gameOver) return;
 
@@ -1891,70 +1899,87 @@ function updateEmptySheolCinematic(dt) {
     sheolSheep.entering = true;
     sheolSheep.fleeing = false;
     sheolSheep.eyesGathered = 0;
-    sheolSheep.hesitateTimer = 0.25;
+    sheolSheep.hesitateTimer = 0.2;
     sheolSheep.jukeTimer = 0;
     sheolSheep.jukeOffset = 1.0;
     sheolSheep.trail = [];
     sheolSheep.x = 55;
     sheolSheep.y = 200;
     spawnSheepEyeInArena();
-    setLore("A sudden stillness holds you near the threshold. A sheep appears in the dark and begins hunting scattered eyes...");
+    setLore("A sudden stillness holds you near the threshold. A sheep enters and moves directly toward the watching sigils...");
   }
 
   if (sheolSheep.active) {
-    const dxToPlayer = player.x - sheolSheep.x;
-    const dyToPlayer = player.y - sheolSheep.y;
-    const distPlayerToSheep = Math.hypot(dxToPlayer, dyToPlayer) || 1;
-    const beingChased = sheepChoiceReady && distPlayerToSheep < 225;
-    sheolSheep.fleeing = beingChased;
+    if (!sheepEyeTarget.active) {
+      spawnSheepEyeInArena();
+    }
 
-    if (beingChased) {
-      sheolSheep.hesitateTimer = 0;
-      sheolSheep.jukeTimer -= dt;
-      if (sheolSheep.jukeTimer <= 0) {
-        sheolSheep.jukeTimer = 0.22 + Math.random() * 0.32;
-        sheolSheep.jukeOffset = (Math.random() < 0.5 ? 1 : -1) * (1.25 + Math.random() * 1.85);
+    const dxToPlayer = (player.x + player.size / 2) - (sheolSheep.x + sheolSheep.size / 2);
+    const dyToPlayer = (player.y + player.size / 2) - (sheolSheep.y + sheolSheep.size / 2);
+    const distPlayerToSheep = Math.hypot(dxToPlayer, dyToPlayer) || 1;
+
+    const closeEvasion = sheepChoiceReady && distPlayerToSheep < 95;
+    sheolSheep.fleeing = closeEvasion;
+
+    const targetX = sheepEyeTarget.x + sheepEyeTarget.size / 2;
+    const targetY = sheepEyeTarget.y + sheepEyeTarget.size / 2;
+    const sheepCenterX = sheolSheep.x + sheolSheep.size / 2;
+    const sheepCenterY = sheolSheep.y + sheolSheep.size / 2;
+    const dxEye = targetX - sheepCenterX;
+    const dyEye = targetY - sheepCenterY;
+    const distEye = Math.hypot(dxEye, dyEye) || 1;
+
+    if (sheolSheep.hesitateTimer > 0 && !closeEvasion) {
+      sheolSheep.hesitateTimer -= dt;
+    } else {
+      let dirX = dxEye / distEye;
+      let dirY = dyEye / distEye;
+
+      if (closeEvasion) {
+        sheolSheep.jukeTimer -= dt;
+        if (sheolSheep.jukeTimer <= 0) {
+          sheolSheep.jukeTimer = 0.18 + Math.random() * 0.22;
+          sheolSheep.jukeOffset = (Math.random() < 0.5 ? 1 : -1) * (1.2 + Math.random() * 1.4);
+        }
+
+        const awayX = -(dxToPlayer / distPlayerToSheep);
+        const awayY = -(dyToPlayer / distPlayerToSheep);
+        const perpX = -awayY * sheolSheep.jukeOffset;
+        const perpY = awayX * sheolSheep.jukeOffset;
+
+        dirX = dirX * 0.55 + awayX * 0.45 + perpX * 0.75;
+        dirY = dirY * 0.55 + awayY * 0.45 + perpY * 0.75;
       }
 
-      let fleeX = -(dxToPlayer / distPlayerToSheep);
-      let fleeY = -(dyToPlayer / distPlayerToSheep);
+      if (sheolSheep.x < 35) dirX += 1.2;
+      if (sheolSheep.x > canvas.width - 55) dirX -= 1.2;
+      if (sheolSheep.y < 35) dirY += 1.2;
+      if (sheolSheep.y > canvas.height - 55) dirY -= 1.2;
 
-      const perpX = -fleeY * sheolSheep.jukeOffset;
-      const perpY = fleeX * sheolSheep.jukeOffset;
-      fleeX += perpX * 0.9;
-      fleeY += perpY * 0.9;
+      const norm = Math.hypot(dirX, dirY) || 1;
+      const moveSpeed = closeEvasion ? 250 : (doorCinematicActive ? 155 : 185);
+      const step = Math.min(moveSpeed * dt, closeEvasion ? moveSpeed * dt : distEye);
 
-      // Steer away from arena edges so it does not get trapped against a wall
-      if (sheolSheep.x < 75) fleeX += 1.6;
-      if (sheolSheep.x > canvas.width - 95) fleeX -= 1.6;
-      if (sheolSheep.y < 75) fleeY += 1.6;
-      if (sheolSheep.y > canvas.height - 95) fleeY -= 1.6;
-
-      const fleeNorm = Math.hypot(fleeX, fleeY) || 1;
-      const evadeSpeed = distPlayerToSheep < 165 ? 430 : 320;
-      sheolSheep.x += (fleeX / fleeNorm) * evadeSpeed * dt;
-      sheolSheep.y += (fleeY / fleeNorm) * evadeSpeed * dt;
+      sheolSheep.x += (dirX / norm) * step;
+      sheolSheep.y += (dirY / norm) * step;
       sheolSheep.x = Math.max(15, Math.min(canvas.width - 36, sheolSheep.x));
       sheolSheep.y = Math.max(15, Math.min(canvas.height - 36, sheolSheep.y));
 
-      sheolSheep.trail.push({ x: sheolSheep.x, y: sheolSheep.y, life: 10 });
-      if (sheolSheep.trail.length > 7) sheolSheep.trail.shift();
-    } else if (sheepEyeTarget.active) {
-      if (sheolSheep.hesitateTimer > 0) {
-        sheolSheep.hesitateTimer -= dt;
-      } else {
-        const dx = sheepEyeTarget.x - sheolSheep.x;
-        const dy = sheepEyeTarget.y - sheolSheep.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist > 4) {
-          const gatherSpeed = 105;
-          sheolSheep.x += (dx / dist) * gatherSpeed * dt;
-          sheolSheep.y += (dy / dist) * gatherSpeed * dt;
-        } else {
-          sheolSheep.eyesGathered++;
-          sheolSheep.hesitateTimer = 0.35;
-          playAbyssCollectSound();
-          spawnSheepEyeInArena();
+      if (closeEvasion) {
+        sheolSheep.trail.push({ x: sheolSheep.x, y: sheolSheep.y, life: 8 });
+        if (sheolSheep.trail.length > 5) sheolSheep.trail.shift();
+      }
+
+      if (checkCollision(
+        sheolSheep.x, sheolSheep.y, sheolSheep.size, sheolSheep.size,
+        sheepEyeTarget.x - 4, sheepEyeTarget.y - 4, sheepEyeTarget.size + 8, sheepEyeTarget.size + 8
+      )) {
+        sheolSheep.eyesGathered++;
+        sheolSheep.hesitateTimer = 0.28;
+        playAbyssCollectSound();
+        spawnSheepEyeInArena();
+        if (sheepChoiceReady) {
+          setLore(`THE SHEEP CLAIMS A SIGIL (${sheolSheep.eyesGathered}) — REPEATING THE WATCHER'S HUNGER.`);
         }
       }
     }
@@ -1971,7 +1996,7 @@ function updateEmptySheolCinematic(dt) {
       doorCinematicActive = false;
       sheolSheep.entering = false;
       sheepChoiceReady = true;
-      setLore("YOUR LIMBS RELEASE. STEP THROUGH THE DOOR TO BREAK THE CYCLE—OR CHASE DOWN THE SHEEP.");
+      setLore("YOUR LIMBS RELEASE. THE SHEEP PURSUES THE SIGILS — STEP THROUGH THE DOOR OR INTERCEPT IT.");
     }
     return;
   }
