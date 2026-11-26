@@ -2271,7 +2271,14 @@ function updateEmptySheolCinematic(dt) {
         playAbyssCollectSound();
         spawnSheepEyeInArena();
         if (sheepChoiceReady) {
-          setLore(`THE SHEEP CLAIMS A SIGIL (${sheolSheep.eyesGathered}) — REPEATING THE WATCHER'S HUNGER.`);
+          const sheepDecisionThoughts = [
+            "Every sigil it swallows pulls the old wheel tighter—if I catch it, the watch endures and nothing dies unremembered... yet the eastern door hums like an unmade promise.",
+            "To hold the sheep is to keep a name etched into the ash and command the dark; to cross the threshold is to unmake the throne and step where no memory follows.",
+            "The sheep gathers what once kept me awake—if I claim it, the vigil has meaning and I remain its sovereign, though the door offers quiet beyond every turning.",
+            "How strange to stand torn between keeping a crown that keeps the world breathing, or letting the dark go cold so the loop can finally end."
+          ];
+          const thoughtIdx = (sheolSheep.eyesGathered - 1) % sheepDecisionThoughts.length;
+          setLore(sheepDecisionThoughts[thoughtIdx]);
         }
       }
     }
