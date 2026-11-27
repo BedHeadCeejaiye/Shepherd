@@ -182,6 +182,12 @@
     gap: 10px;
     overflow: hidden;
   }
+  #codex-main-column {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
   #codex-content {
     flex-grow: 1;
     overflow-y: auto;
@@ -201,6 +207,44 @@
     background: #5c4033;
     border-radius: 3px;
   }
+  /* Cipher Decoder Bar inside Codex */
+  #codex-cipher-bar {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed #3e2b22;
+    font-size: 11px;
+  }
+  #codex-cipher-input {
+    flex-grow: 1;
+    background: rgba(10, 8, 6, 0.85);
+    border: 1px solid #5c4033;
+    color: #f0c45a;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    padding: 3px 6px;
+    outline: none;
+    text-transform: uppercase;
+  }
+  #codex-cipher-input::placeholder {
+    color: #6e5548;
+    text-transform: none;
+  }
+  #codex-cipher-btn {
+    background: #2b2019;
+    border: 1px solid #8c6623;
+    color: #d4a373;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 10px;
+    padding: 3px 8px;
+    cursor: pointer;
+  }
+  #codex-cipher-btn:hover {
+    background: #3d2e24;
+    color: #ffd700;
+  }
   /* Easter egg slot strip on the right margin of the parchment */
   #codex-margin {
     width: 56px;
@@ -211,7 +255,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 10px;
+    gap: 8px;
     padding-top: 4px;
   }
   #codex-overlay.amber-tinted #codex-margin {
@@ -248,6 +292,7 @@
   #codex-footer {
     border-top: 1px dashed #5c4033;
     padding-top: 6px;
+    margin-top: 6px;
     font-size: 10px;
     color: #8d6e63;
     text-align: center;
@@ -316,12 +361,12 @@
       <span id="score-text-bottom" style="color: #888;">/ 20</span>
     </div>
     <div id="sigils-container">
-      <span id="sigils" title="Unlocked Endings">[---] [---] [---]</span>
+      <span id="sigils">[---] [---] [---]</span>
       <span id="crown-sigil"></span>
     </div>
   </div>
   <div class="hud-right">
-    <div class="volume-container" title="Master Volume">
+    <div class="volume-container">
       <span>VOL</span>
       <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.45">
     </div>
@@ -340,7 +385,13 @@
         <span style="cursor: pointer; color: #dda15e;" onclick="toggleCodex()">[CLOSE]</span>
       </div>
       <div id="codex-body">
-        <div id="codex-content">Unraveling the parchment...</div>
+        <div id="codex-main-column">
+          <div id="codex-content">Unraveling the parchment...</div>
+          <div id="codex-cipher-bar">
+            <input type="text" id="codex-cipher-input" placeholder="Speak the plain tongue of a recorded whisper..." autocomplete="off" spellcheck="false" />
+            <button id="codex-cipher-btn" type="button" onclick="submitCipherTranslation()">UNWIND</button>
+          </div>
+        </div>
         <div id="codex-margin"></div>
       </div>
       <div id="codex-footer">Press [C] or click [CLOSE] to return to the path.</div>
@@ -377,6 +428,8 @@ const volumeSlider = document.getElementById("volume-slider");
 const codexOverlay = document.getElementById("codex-overlay");
 const codexContent = document.getElementById("codex-content");
 const codexMargin = document.getElementById("codex-margin");
+const codexCipherBar = document.getElementById("codex-cipher-bar");
+const codexCipherInput = document.getElementById("codex-cipher-input");
 
 const consoleOverlay = document.getElementById("console-overlay");
 const consoleLog = document.getElementById("console-log");
@@ -392,23 +445,29 @@ let loopFate = JSON.parse(localStorage.getItem("eden_abyss_loop_fate")) || {
 };
 
 // Persistent secret easter egg badges (cleared only on full console 'reset')
-let badges = JSON.parse(localStorage.getItem("eden_abyss_badges")) || {
-  crownedHarvest: false,
-  archiveComplete: false,
-  demonKing: false
+const savedBadges = JSON.parse(localStorage.getItem("eden_abyss_badges")) || {};
+let badges = {
+  crownedHarvest: Boolean(savedBadges.crownedHarvest),
+  shepherdsVigil: Boolean(savedBadges.shepherdsVigil),
+  demonKing: Boolean(savedBadges.demonKing),
+  cipherDecoded: Boolean(savedBadges.cipherDecoded)
 };
 
 let cheatedThisRun = false;
 let diedToWatcherThisRun = false;
 let demonKingTriggerTimer = 0;
 let demonKingAnnouncedThisRun = false;
+let stillSheepEyesGathered = 0;
 
 const DEMON_KING_LORE = "Oh, Faker maybe in trouble here! Death Mark... tries to clean it up for Ryu. Oh, look at the cleanse! Look at the moves! FAKER, WHAT WAS THAT?!";
 
 function saveBadges() {
   localStorage.setItem("eden_abyss_badges", JSON.stringify(badges));
   applyCodexHarvestTint();
-  if (codexOpen) renderCodexMargin();
+  if (codexOpen) {
+    buildCodexManuscript();
+    renderCodexMargin();
+  }
 }
 
 function unlockBadge(key) {
@@ -451,6 +510,58 @@ function evaluateCorruptedEdenDemonKing() {
   }
 }
 
+// ==================== CAESAR CIPHER (+2) DECODING ====================
+function decodeCaesarShiftTwo(encoded) {
+  return encoded.replace(/[A-Za-z]/g, (ch) => {
+    const base = ch >= "a" ? 97 : 65;
+    const code = ch.charCodeAt(0) - base;
+    return String.fromCharCode(((code - 2 + 26) % 26) + base);
+  });
+}
+
+function normalizePhrase(str) {
+  return str.toUpperCase().replace(/[^A-Z0-9\s]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function submitCipherTranslation() {
+  const rawInput = codexCipherInput.value;
+  const normalized = normalizePhrase(rawInput);
+  if (!normalized || recordedWhispers.size === 0) return;
+
+  let matched = false;
+  for (const encodedLine of recordedWhispers) {
+    const decoded = normalizePhrase(decodeCaesarShiftTwo(encodedLine));
+    if (decoded === normalized) {
+      matched = true;
+      break;
+    }
+  }
+
+  if (matched) {
+    codexCipherInput.value = "";
+    playTrueEndingSound();
+    unlockBadge("cipherDecoded");
+    buildCodexManuscript();
+    renderCodexMargin();
+  } else {
+    codexCipherInput.style.borderColor = "#ff1744";
+    setTimeout(() => {
+      codexCipherInput.style.borderColor = "#5c4033";
+    }, 450);
+  }
+}
+
+codexCipherInput.addEventListener("keydown", (e) => {
+  e.stopPropagation();
+  if (e.key === "Enter") {
+    e.preventDefault();
+    submitCipherTranslation();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    toggleCodex();
+  }
+});
+
 // ==================== CODEX EASTER EGG SLOTS ====================
 function drawMarginBadgeIcon(bctx, key) {
   const w = bctx.canvas.width;
@@ -483,19 +594,12 @@ function drawMarginBadgeIcon(bctx, key) {
     bctx.moveTo(7, 18);
     bctx.lineTo(25, 18);
     bctx.stroke();
-  } else if (key === "archiveComplete") {
+  } else if (key === "shepherdsVigil") {
     bctx.beginPath();
-    bctx.arc(16, 11, 5.5, Math.PI * 0.85, Math.PI * 2.15);
-    bctx.stroke();
-
-    bctx.beginPath();
-    bctx.arc(16, 11, 2.2, 0, Math.PI * 2);
-    bctx.fill();
-    bctx.stroke();
-
-    bctx.beginPath();
-    bctx.moveTo(11, 18);
-    bctx.lineTo(21, 18);
+    bctx.moveTo(15, 19);
+    bctx.lineTo(15, 8.5);
+    bctx.arc(18.5, 8.5, 3.5, Math.PI, 0, false);
+    bctx.arc(20.5, 9, 1.5, 0, Math.PI * 0.75, false);
     bctx.stroke();
   } else if (key === "demonKing") {
     const leftX = 10.5;
@@ -529,32 +633,35 @@ function drawMarginBadgeIcon(bctx, key) {
     bctx.moveTo(25.8, lensY - 0.5);
     bctx.lineTo(27.5, lensY - 2.5);
     bctx.stroke();
+  } else if (key === "cipherDecoded") {
+    bctx.beginPath();
+    bctx.arc(16, 9, 3.2, 0, Math.PI * 2);
+    bctx.fill();
+    bctx.stroke();
+
+    bctx.beginPath();
+    bctx.moveTo(14.5, 11.8);
+    bctx.lineTo(13.5, 18);
+    bctx.lineTo(18.5, 18);
+    bctx.lineTo(17.5, 11.8);
+    bctx.closePath();
+    bctx.fill();
+    bctx.stroke();
   }
 
   bctx.restore();
 }
 
 const CODEX_MARGIN_NOTCHES = [
-  {
-    key: "crownedHarvest",
-    lockedHint: "Hidden Easter Egg — Uncover its condition in the grove.",
-    unlockedHint: "Twenty fruits gathered beneath crimson rings."
-  },
-  {
-    key: "archiveComplete",
-    lockedHint: "Hidden Easter Egg — Listen closely to what lingers in the stillness.",
-    unlockedHint: "Heard the whispers in the stillness of Eden and claimed fruit afterward."
-  },
-  {
-    key: "demonKing",
-    lockedHint: "Hidden Easter Egg — Claim the crown and walk the corrupted grove without dying in Abaddon or using commands.",
-    unlockedHint: "The Unkillable Demon King — Returned to the corrupted grove wearing the crown without dying in Abaddon or using commands."
-  }
+  { key: "crownedHarvest" },
+  { key: "shepherdsVigil" },
+  { key: "demonKing" },
+  { key: "cipherDecoded" }
 ];
 
 function applyCodexHarvestTint() {
   const anyBadgeUnlocked = Boolean(
-    badges.crownedHarvest || badges.archiveComplete || badges.demonKing
+    badges.crownedHarvest || badges.shepherdsVigil || badges.demonKing || badges.cipherDecoded
   );
   codexOverlay.classList.toggle("amber-tinted", anyBadgeUnlocked);
 }
@@ -565,7 +672,6 @@ function renderCodexMargin() {
     const isUnlocked = Boolean(badges[notch.key]);
     const el = document.createElement("div");
     el.className = "margin-notch" + (isUnlocked ? " unlocked" : "");
-    el.title = isUnlocked ? notch.unlockedHint : notch.lockedHint;
 
     if (isUnlocked) {
       const iconCanvas = document.createElement("canvas");
@@ -975,14 +1081,16 @@ canvas.addEventListener("click", () => {
   if (!consoleOpen && !codexOpen) canvas.focus();
 });
 
-let unlocked = JSON.parse(localStorage.getItem("eden_abyss_endings")) || {
-  eden: false,
-  death: false,
-  revelation: false,
-  trueEnd: false,
-  crownedHarvest: false,
-  archiveComplete: false,
-  demonKing: false
+const savedEndings = JSON.parse(localStorage.getItem("eden_abyss_endings")) || {};
+let unlocked = {
+  eden: Boolean(savedEndings.eden),
+  death: Boolean(savedEndings.death),
+  revelation: Boolean(savedEndings.revelation),
+  trueEnd: Boolean(savedEndings.trueEnd),
+  crownedHarvest: Boolean(savedEndings.crownedHarvest),
+  shepherdsVigil: Boolean(savedEndings.shepherdsVigil),
+  demonKing: Boolean(savedEndings.demonKing),
+  cipherDecoded: Boolean(savedEndings.cipherDecoded)
 };
 
 let savedSealsCount = parseInt(localStorage.getItem("eden_abyss_seals_count")) || 0;
@@ -1026,8 +1134,9 @@ function resetAfterTrueEndingChoice() {
     revelation: false,
     trueEnd: Boolean(unlocked.trueEnd),
     crownedHarvest: Boolean(unlocked.crownedHarvest),
-    archiveComplete: Boolean(unlocked.archiveComplete),
-    demonKing: Boolean(unlocked.demonKing)
+    shepherdsVigil: Boolean(unlocked.shepherdsVigil),
+    demonKing: Boolean(unlocked.demonKing),
+    cipherDecoded: Boolean(unlocked.cipherDecoded)
   };
   localStorage.setItem("eden_abyss_endings", JSON.stringify(unlocked));
 
@@ -1192,7 +1301,6 @@ let playerStillTimer = performance.now();
 let lastPlayerX = 50;
 let lastPlayerY = 200;
 let isWhispering = false;
-let heardPastureWhisperThisRun = false;
 let savedLoreText = '"The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures..."';
 let phantomItem = { x: 0, y: 0, active: false, timer: 0 };
 
@@ -1217,7 +1325,8 @@ const forbiddenFruit = {
 };
 
 function checkForbiddenFruitSpawn() {
-  unlocked = JSON.parse(localStorage.getItem("eden_abyss_endings")) || unlocked;
+  const freshEndings = JSON.parse(localStorage.getItem("eden_abyss_endings")) || {};
+  unlocked = Object.assign(unlocked, freshEndings);
   forbiddenFruit.active = allBaseEndingsUnlocked() && !hasCrownEquipped();
   if (!isUpsideDown && !gameOver) {
     evaluateCorruptedEdenDemonKing();
@@ -1470,10 +1579,18 @@ function buildCodexManuscript() {
   }
 
   manuscript += "[ RECORDED WHISPERS ]\n";
-  manuscript += "  'Scraps caught where the dark breathed closest:'\n";
+  if (badges.cipherDecoded) {
+    manuscript += "  'The two-step lock is unwound. Every scrap speaks in plain tongue now:'\n";
+  } else {
+    manuscript += "  'Scraps caught where the dark breathed closest:'\n";
+  }
   if (recordedWhispers.size > 0) {
     recordedWhispers.forEach((line) => {
-      manuscript += "  * \"" + line + "\"\n";
+      if (badges.cipherDecoded) {
+        manuscript += "  * \"" + line + "\"  -->  \"" + decodeCaesarShiftTwo(line) + "\"\n";
+      } else {
+        manuscript += "  * \"" + line + "\"\n";
+      }
     });
   } else {
     manuscript += "  * [ No whispers caught in the dark yet... ]\n";
@@ -1481,6 +1598,12 @@ function buildCodexManuscript() {
   manuscript += "\n";
 
   codexContent.innerText = manuscript;
+
+  if (recordedWhispers.size > 0 && !badges.cipherDecoded) {
+    codexCipherBar.style.display = "flex";
+  } else {
+    codexCipherBar.style.display = "none";
+  }
 }
 
 function toggleCodex() {
@@ -1570,13 +1693,15 @@ function processCommand(cmd) {
       revelation: false,
       trueEnd: false,
       crownedHarvest: false,
-      archiveComplete: false,
-      demonKing: false
+      shepherdsVigil: false,
+      demonKing: false,
+      cipherDecoded: false
     };
     badges = {
       crownedHarvest: false,
-      archiveComplete: false,
-      demonKing: false
+      shepherdsVigil: false,
+      demonKing: false,
+      cipherDecoded: false
     };
     loopFate = { brokeLoop: false, keptLoop: false };
     savedSealsCount = 0;
@@ -1714,7 +1839,7 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 
-  if (e.key.toLowerCase() === "c" && !consoleOpen) {
+  if (e.key.toLowerCase() === "c" && !consoleOpen && document.activeElement !== codexCipherInput) {
     e.preventDefault();
     toggleCodex();
     return;
@@ -1792,6 +1917,7 @@ function triggerUpsideDown(trueMode = false) {
   trueWon = false;
   doorBreakWon = false;
   demonKingTriggerTimer = 0;
+  stillSheepEyesGathered = 0;
   targetSeals = enterEmptySheol ? 0 : (allowPit ? 9 : 6);
   shakeTime = enterEmptySheol ? 18 : (allowPit ? 70 : 45);
   watcherStunTimer = enterEmptySheol ? 0 : 45;
@@ -1801,7 +1927,6 @@ function triggerUpsideDown(trueMode = false) {
   lastPlayerX = 60;
   lastPlayerY = 200;
   isWhispering = false;
-  heardPastureWhisperThisRun = false;
   isWatcherFleeing = false;
   fleeGraceTimer = 0;
   watcherJukeTimer = 0;
@@ -1897,6 +2022,7 @@ function respawnAfterRunEnd() {
   diedToWatcherThisRun = false;
   demonKingTriggerTimer = 0;
   demonKingAnnouncedThisRun = false;
+  stillSheepEyesGathered = 0;
   score = 0;
   eyesCollected = 0;
   targetSeals = 6;
@@ -1931,7 +2057,6 @@ function respawnAfterRunEnd() {
   subliminalGlyphs = [];
   playerStillTimer = performance.now();
   isWhispering = false;
-  heardPastureWhisperThisRun = false;
   phantomItem.active = false;
   player.x = 50;
   player.y = 200;
@@ -2180,6 +2305,7 @@ function updateEmptySheolCinematic(dt) {
     doorCinematicPlayed = true;
     doorCinematicActive = true;
     doorCinematicTimer = 1.65;
+    stillSheepEyesGathered = 0;
     sheolSheep.active = true;
     sheolSheep.entering = true;
     sheolSheep.fleeing = false;
@@ -2280,16 +2406,24 @@ function updateEmptySheolCinematic(dt) {
         sheolSheep.hesitateTimer = 0.18;
         playAbyssCollectSound();
         spawnSheepEyeInArena();
-        if (sheepChoiceReady && sheepThoughtCooldown <= 0) {
-          const sheepDecisionThoughts = [
-            "Every sigil it swallows pulls the old wheel tighter—if I catch it, the watch endures and nothing dies unremembered... yet the eastern door hums like an unmade promise.",
-            "To hold the sheep is to keep a name etched into the ash and command the dark; to cross the threshold is to unmake the throne and step where no memory follows.",
-            "The sheep gathers what once kept me awake—if I claim it, the vigil has meaning and I remain its sovereign, though the door offers quiet beyond every turning.",
-            "How strange to stand torn between keeping a crown that keeps the world breathing, or letting the dark go cold so the loop can finally end."
-          ];
-          setLore(sheepDecisionThoughts[sheepThoughtIndex % sheepDecisionThoughts.length]);
-          sheepThoughtIndex++;
-          sheepThoughtCooldown = 6.5;
+
+        if (sheepChoiceReady) {
+          stillSheepEyesGathered++;
+          if (stillSheepEyesGathered >= 10 && !cheatedThisRun) {
+            unlockBadge("shepherdsVigil");
+          }
+
+          if (sheepThoughtCooldown <= 0) {
+            const sheepDecisionThoughts = [
+              "Every sigil it swallows pulls the old wheel tighter—if I catch it, the watch endures and nothing dies unremembered... yet the eastern door hums like an unmade promise.",
+              "To hold the sheep is to keep a name etched into the ash and command the dark; to cross the threshold is to unmake the throne and step where no memory follows.",
+              "The sheep gathers what once kept me awake—if I claim it, the vigil has meaning and I remain its sovereign, though the door offers quiet beyond every turning.",
+              "How strange to stand torn between keeping a crown that keeps the world breathing, or letting the dark go cold so the loop can finally end."
+            ];
+            setLore(sheepDecisionThoughts[sheepThoughtIndex % sheepDecisionThoughts.length]);
+            sheepThoughtIndex++;
+            sheepThoughtCooldown = 6.5;
+          }
         }
       }
     }
@@ -2306,6 +2440,7 @@ function updateEmptySheolCinematic(dt) {
       doorCinematicActive = false;
       sheolSheep.entering = false;
       sheepChoiceReady = true;
+      stillSheepEyesGathered = 0;
       sheepThoughtCooldown = 4.5;
       setLore("YOUR LIMBS RELEASE. THE SHEEP HUNTS THE SIGILS WHILE THE THRESHOLD STANDS OPEN.");
     }
@@ -2450,6 +2585,7 @@ function update(dt) {
     playerStillTimer = performance.now();
     lastPlayerX = player.x;
     lastPlayerY = player.y;
+    stillSheepEyesGathered = 0;
     if (isWhispering) {
       isWhispering = false;
       loreBox.style.color = isUpsideDown ? "#ff9999" : (demonKingTriggerTimer > 0 ? "#ffd700" : "#e0e0e0");
@@ -2459,7 +2595,6 @@ function update(dt) {
   } else if (!isUpsideDown && !doorCinematicActive && !emptySheol) {
     if (!isWhispering && (performance.now() - playerStillTimer > 10000)) {
       isWhispering = true;
-      heardPastureWhisperThisRun = true;
       loreBox.style.color = "#ff5252";
       loreBox.style.fontStyle = "italic";
       loreBox.innerText = edenWhispers[Math.floor(Math.random() * edenWhispers.length)];
@@ -2488,9 +2623,6 @@ function update(dt) {
   if (!isWatcherFleeing && checkCollision(player.x, player.y, player.size, player.size, item.x, item.y, item.size, item.size)) {
     if (!isUpsideDown) {
       playEdenCollectSound();
-      if (heardPastureWhisperThisRun && !cheatedThisRun) {
-        unlockBadge("archiveComplete");
-      }
       score++;
       scoreTextTop.innerText = `FRUITS GATHERED: ${score}`;
 
