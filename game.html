@@ -459,6 +459,15 @@ let demonKingTriggerTimer = 0;
 let demonKingAnnouncedThisRun = false;
 let stillSheepEyesGathered = 0;
 
+// Wise Tree & Riddle Progression State
+let wiseTreeTouches = 0;
+let wiseTreeRiddleHeard = false;
+let cipherUnwound = Boolean(savedBadges.cipherDecoded);
+
+const WISE_TREE_RIDDLE = "When the hand that tends the flock grows still and the script keeps turning on its own, what truth does the dark whisper?";
+const WISE_TREE_ANSWER_PLAIN = "THE SHEPHERD SLEEPS";
+const WISE_TREE_ANSWER_ENCODED = "VJG UJGRJGTE UNGGVU";
+
 const DEMON_KING_LORE = "Oh, Faker maybe in trouble here! Death Mark... tries to clean it up for Ryu. Oh, look at the cleanse! Look at the moves! FAKER, WHAT WAS THAT?!";
 
 function saveBadges() {
@@ -523,6 +532,16 @@ function normalizePhrase(str) {
   return str.toUpperCase().replace(/[^A-Z0-9\s]/g, "").replace(/\s+/g, " ").trim();
 }
 
+function hasUnwoundWiseTreeAnswer() {
+  if (!cipherUnwound) return false;
+  for (const line of recordedWhispers) {
+    if (normalizePhrase(decodeCaesarShiftTwo(line)) === WISE_TREE_ANSWER_PLAIN) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function submitCipherTranslation() {
   const rawInput = codexCipherInput.value;
   const normalized = normalizePhrase(rawInput);
@@ -539,8 +558,11 @@ function submitCipherTranslation() {
 
   if (matched) {
     codexCipherInput.value = "";
-    playTrueEndingSound();
-    unlockBadge("cipherDecoded");
+    cipherUnwound = true;
+    playDoorStepSound();
+    if (wiseTreeRiddleHeard && hasUnwoundWiseTreeAnswer()) {
+      setLore("The words unwind in your hands. Return to the pale tree on the western path and speak what you found.");
+    }
     buildCodexManuscript();
     renderCodexMargin();
   } else {
@@ -1347,7 +1369,6 @@ const forestTrees = [
   { x: 180, y: 40, width: 45, height: 45, style: "boxy" },
   { x: 310, y: 70, width: 45, height: 45, style: "round" },
   { x: 440, y: 45, width: 45, height: 45, style: "boxy" },
-  { x: 120, y: 160, width: 45, height: 45, style: "boxy" },
   { x: 250, y: 180, width: 45, height: 45, style: "round" },
   { x: 400, y: 150, width: 45, height: 45, style: "boxy" },
   { x: 70, y: 290, width: 45, height: 45, style: "round" },
@@ -1356,6 +1377,16 @@ const forestTrees = [
   { x: 450, y: 280, width: 45, height: 45, style: "boxy" }
 ];
 
+// The Wise Tree on the western side of Eden (riddle-keeper)
+const wiseTree = {
+  x: 120,
+  y: 160,
+  width: 45,
+  height: 45,
+  style: "round"
+};
+
+// The Eastern Anomaly Tree (leads to Sheol)
 const anomaly = {
   x: 520,
   y: 190,
@@ -1413,7 +1444,7 @@ const pitSigilLore = [
   "THE NINTH SIGIL BREAKS. IT FLEES INTO THE DARK—HUNT IT DOWN."
 ];
 
-// Caesar Shift +2 proximity whispers
+// Caesar Shift +2 proximity whispers (weighted so the Wise Tree's answer appears reliably)
 const watcherProximityWhispers = [
   "K UGG AQW",
   "VJG RKV KU YQTM",
@@ -1424,6 +1455,7 @@ const watcherProximityWhispers = [
   "VQQU QWV VJG YGEV",
   "PQ VJGCVJ KU UCHG",
   "K VCMG AQWT TQQV",
+  "VJG UJGRJGTE UNGGVU",
   "VJG UJGRJGTE UNGGVU"
 ];
 
@@ -1496,7 +1528,12 @@ function updateWatcherProximityLore(now = performance.now()) {
   );
 
   if (dist <= WHISPER_RADIUS && dist > KILL_RADIUS && now - lastProximityWhisperTime >= PROXIMITY_WHISPER_COOLDOWN_MS) {
-    const line = watcherProximityWhispers[Math.floor(Math.random() * watcherProximityWhispers.length)];
+    let line;
+    if (wiseTreeRiddleHeard && !recordedWhispers.has(WISE_TREE_ANSWER_ENCODED) && proximityWhisperCount >= 1 && Math.random() < 0.65) {
+      line = WISE_TREE_ANSWER_ENCODED;
+    } else {
+      line = watcherProximityWhispers[Math.floor(Math.random() * watcherProximityWhispers.length)];
+    }
     loreBox.style.color = "#ff8a8a";
     loreBox.style.fontStyle = "normal";
     setLore(line);
@@ -1578,15 +1615,29 @@ function buildCodexManuscript() {
     manuscript += "  * [ Sealed with a heavy wax stamp. Descend into Abaddon and shatter its seals to decode this realm... ] *\n\n";
   }
 
+  if (wiseTreeRiddleHeard || badges.cipherDecoded) {
+    manuscript += "[ THE PALE ROOT'S RIDDLE ]\n";
+    manuscript += "  \"" + WISE_TREE_RIDDLE + "\"\n";
+    if (badges.cipherDecoded) {
+      manuscript += "  --- ANSWERED IN PLAIN TONGUE: \"THE SHEPHERD SLEEPS\" ---\n";
+      manuscript += "  'Long ago, the one who planted the pasture laid down the staff and never returned. Without a hand to guide it, the grove kept repeating its first morning, and the Watcher kept guarding a flock that no longer needed a fence.'\n";
+    } else if (hasUnwoundWiseTreeAnswer()) {
+      manuscript += "  * [ The unwound truth rests in your hands. Return to the pale tree in Eden's Grove... ] *\n";
+    } else {
+      manuscript += "  * [ The answer is whispered in the dark below, shifted two steps out of reach... ] *\n";
+    }
+    manuscript += "\n";
+  }
+
   manuscript += "[ RECORDED WHISPERS ]\n";
-  if (badges.cipherDecoded) {
+  if (cipherUnwound || badges.cipherDecoded) {
     manuscript += "  'The two-step lock is unwound. Every scrap speaks in plain tongue now:'\n";
   } else {
     manuscript += "  'Scraps caught where the dark breathed closest:'\n";
   }
   if (recordedWhispers.size > 0) {
     recordedWhispers.forEach((line) => {
-      if (badges.cipherDecoded) {
+      if (cipherUnwound || badges.cipherDecoded) {
         manuscript += "  * \"" + line + "\"  -->  \"" + decodeCaesarShiftTwo(line) + "\"\n";
       } else {
         manuscript += "  * \"" + line + "\"\n";
@@ -1599,7 +1650,7 @@ function buildCodexManuscript() {
 
   codexContent.innerText = manuscript;
 
-  if (recordedWhispers.size > 0 && !badges.cipherDecoded) {
+  if (recordedWhispers.size > 0 && !cipherUnwound && !badges.cipherDecoded) {
     codexCipherBar.style.display = "flex";
   } else {
     codexCipherBar.style.display = "none";
@@ -1703,6 +1754,9 @@ function processCommand(cmd) {
       demonKing: false,
       cipherDecoded: false
     };
+    wiseTreeTouches = 0;
+    wiseTreeRiddleHeard = false;
+    cipherUnwound = false;
     loopFate = { brokeLoop: false, keptLoop: false };
     savedSealsCount = 0;
     savedPitSealsCount = 0;
@@ -1788,6 +1842,9 @@ function processCommand(cmd) {
             valid = false;
             break;
           }
+        }
+        if (checkCollision(player.x, player.y, player.size, player.size, wiseTree.x, wiseTree.y, wiseTree.width, wiseTree.height)) {
+          valid = false;
         }
         if (checkCollision(player.x, player.y, player.size, player.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
           valid = false;
@@ -1880,6 +1937,9 @@ function spawnItem() {
           valid = false;
           break;
         }
+      }
+      if (checkCollision(item.x, item.y, item.size, item.size, wiseTree.x, wiseTree.y, wiseTree.width, wiseTree.height)) {
+        valid = false;
       }
       if (checkCollision(item.x, item.y, item.size, item.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
         valid = false;
@@ -1985,6 +2045,42 @@ function triggerUpsideDown(trueMode = false) {
   }
 }
 
+function handleWiseTreeTouch() {
+  wiseTreeTouches++;
+
+  const dx = (player.x + player.size / 2) - (wiseTree.x + wiseTree.width / 2);
+  const dy = (player.y + player.size / 2) - (wiseTree.y + wiseTree.height / 2);
+  const dist = Math.hypot(dx, dy) || 1;
+  player.x = Math.max(0, Math.min(canvas.width - player.size, player.x + (dx / dist) * 18));
+  player.y = Math.max(0, Math.min(canvas.height - player.size, player.y + (dy / dist) * 18));
+
+  loreBox.style.color = "#d4e6c3";
+  loreBox.style.fontStyle = "italic";
+
+  if (badges.cipherDecoded) {
+    setLore("\"The shepherd sleeps, and the wheel turns without a hand. You already carry what my roots remembered.\"");
+    return;
+  }
+
+  if (wiseTreeRiddleHeard && hasUnwoundWiseTreeAnswer()) {
+    playTrueEndingSound();
+    unlockBadge("cipherDecoded");
+    loreBox.style.color = "#ffd700";
+    loreBox.style.fontStyle = "normal";
+    setLore("\"THE SHEPHERD SLEEPS... Yes. Without a hand to guide the staff, the pasture repeats its first morning while the Watcher guards an empty fence.\"");
+    return;
+  }
+
+  if (wiseTreeTouches === 1) {
+    setLore("\"My roots run deeper than this green carpet. Even a quiet pasture casts a long shadow beneath the soil.\"");
+  } else if (wiseTreeTouches === 2) {
+    setLore("\"The eastern tree bleeds because it was cut open. I only listen to the words that drift up from the dark below.\"");
+  } else {
+    wiseTreeRiddleHeard = true;
+    setLore(`"${WISE_TREE_RIDDLE}"`);
+  }
+}
+
 function handleAnomalyTouch() {
   forbiddenTouches++;
   shakeTime = 12;
@@ -1994,6 +2090,9 @@ function handleAnomalyTouch() {
   const dist = Math.hypot(dx, dy) || 1;
   player.x += (dx / dist) * 24;
   player.y += (dy / dist) * 24;
+
+  loreBox.style.color = "#e0e0e0";
+  loreBox.style.fontStyle = "normal";
 
   if (forbiddenTouches === 1) {
     setLore("The bark of this particular tree is unnaturally cold to the touch...");
@@ -2105,11 +2204,21 @@ function checkCollision(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 }
 
-function drawTree(x, y, style = "round", rot = 0) {
-  ctx.fillStyle = lerpColor("#2e1c0c", "#1a1412", rot);
+function drawTree(x, y, style = "round", rot = 0, isWise = false) {
+  ctx.fillStyle = isWise
+    ? lerpColor("#4a3b2c", "#2d251e", rot)
+    : lerpColor("#2e1c0c", "#1a1412", rot);
   ctx.fillRect(x + 16, y + 22, 13, 20);
 
-  ctx.fillStyle = lerpColor("#1b4d1b", "#3d3324", rot);
+  if (isWise) {
+    // Pale knot scar in the trunk of the Wise Tree
+    ctx.fillStyle = badges.cipherDecoded ? "#d4a373" : "#8d7b68";
+    ctx.fillRect(x + 20, y + 28, 4, 6);
+  }
+
+  ctx.fillStyle = isWise
+    ? lerpColor("#3b6e52", "#524c3a", rot)
+    : lerpColor("#1b4d1b", "#3d3324", rot);
   if (style === "boxy") {
     ctx.fillRect(x + 5, y + 5, 35, 22);
   } else {
@@ -2531,6 +2640,7 @@ function update(dt) {
     }
   }
 
+  let touchedWiseTreeThisFrame = false;
   let touchedAnomalyThisFrame = false;
   let moveDistance = player.speed * dt;
 
@@ -2547,6 +2657,10 @@ function update(dt) {
           collidedX = true;
           break;
         }
+      }
+      if (checkCollision(nextX, player.y, player.size, player.size, wiseTree.x, wiseTree.y, wiseTree.width, wiseTree.height)) {
+        collidedX = true;
+        touchedWiseTreeThisFrame = true;
       }
       if (checkCollision(nextX, player.y, player.size, player.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
         collidedX = true;
@@ -2569,6 +2683,10 @@ function update(dt) {
           collidedY = true;
           break;
         }
+      }
+      if (checkCollision(player.x, nextY, player.size, player.size, wiseTree.x, wiseTree.y, wiseTree.width, wiseTree.height)) {
+        collidedY = true;
+        touchedWiseTreeThisFrame = true;
       }
       if (checkCollision(player.x, nextY, player.size, player.size, anomaly.x, anomaly.y, anomaly.width, anomaly.height)) {
         collidedY = true;
@@ -2599,6 +2717,10 @@ function update(dt) {
       loreBox.style.fontStyle = "italic";
       loreBox.innerText = edenWhispers[Math.floor(Math.random() * edenWhispers.length)];
     }
+  }
+
+  if (!isUpsideDown && touchedWiseTreeThisFrame) {
+    handleWiseTreeTouch();
   }
 
   if (!isUpsideDown && touchedAnomalyThisFrame) {
@@ -2711,7 +2833,7 @@ function update(dt) {
           phantomItem.active = false;
           if (distToPhantom < 42) {
             shakeTime = 10;
-            setLore("A MIRAGE OF THE PIT. YOUR EYES DECEIVE YOU.");
+            setLore("A MIRAGE OF THE PIT. YOUR EYES DEIVE YOU.");
           }
         }
       }
@@ -2921,10 +3043,11 @@ function draw() {
     drawDemonKingSideCallout();
 
     for (const tree of forestTrees) {
-      drawTree(tree.x, tree.y, tree.style, rot);
+      drawTree(tree.x, tree.y, tree.style, rot, false);
     }
 
-    drawTree(anomaly.x, anomaly.y, anomaly.style, Math.min(1, rot + 0.25));
+    drawTree(wiseTree.x, wiseTree.y, wiseTree.style, rot, true);
+    drawTree(anomaly.x, anomaly.y, anomaly.style, Math.min(1, rot + 0.25), false);
 
   } else {
     const emptySheol = isEmptySheolActive();
