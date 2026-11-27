@@ -137,6 +137,74 @@
     transition: all 0.3s ease;
   }
 
+  /* Pop-Out Riddle Answer Modal */
+  #riddle-modal {
+    position: absolute;
+    top: 76px;
+    left: 60px;
+    width: 480px;
+    background: #141210;
+    border: 2px solid #8c6623;
+    box-shadow: 0 0 28px rgba(0, 0, 0, 0.85);
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+    box-sizing: border-box;
+    z-index: 95;
+    font-family: 'Courier New', Courier, monospace;
+    background-image: radial-gradient(circle, #211c18 0%, #0d0b09 100%);
+  }
+  #riddle-modal-title {
+    font-size: 12px;
+    font-weight: bold;
+    color: #f0c45a;
+    letter-spacing: 1px;
+  }
+  #riddle-modal-question {
+    font-size: 13px;
+    color: #e6d5b8;
+    line-height: 1.45;
+  }
+  #riddle-modal-status {
+    font-size: 11px;
+    color: #b58d45;
+    min-height: 14px;
+  }
+  #riddle-modal-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  #riddle-answer-input {
+    flex-grow: 1;
+    background: rgba(10, 8, 6, 0.9);
+    border: 1px solid #5c4033;
+    color: #f0c45a;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+    padding: 6px 8px;
+    outline: none;
+    text-transform: uppercase;
+  }
+  #riddle-answer-input::placeholder {
+    color: #6e5548;
+    text-transform: none;
+  }
+  .riddle-btn {
+    background: #2b2019;
+    border: 1px solid #8c6623;
+    color: #d4a373;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+  .riddle-btn:hover {
+    background: #3d2e24;
+    color: #ffd700;
+  }
+
   /* Torn Book / Parchment Codex Modal Overlay */
   #codex-overlay {
     position: absolute;
@@ -377,6 +445,18 @@
 <div id="game-layout">
   <div id="game-wrapper">
     <canvas id="gameCanvas" width="600" height="400" tabindex="0"></canvas>
+
+    <!-- Pop-Out Riddle Answer Box -->
+    <div id="riddle-modal">
+      <div id="riddle-modal-title">~ THE GROVE'S RIDDLE ~</div>
+      <div id="riddle-modal-question"></div>
+      <div id="riddle-modal-status"></div>
+      <div id="riddle-modal-controls">
+        <input type="text" id="riddle-answer-input" placeholder="Answer in plain tongue..." autocomplete="off" spellcheck="false" />
+        <button class="riddle-btn" type="button" onclick="submitRiddleAnswer()">ANSWER</button>
+        <button class="riddle-btn" type="button" onclick="closeRiddleModal()">STEP BACK</button>
+      </div>
+    </div>
     
     <!-- Torn Book / Parchment Codex Overlay (Press C) -->
     <div id="codex-overlay">
@@ -425,6 +505,11 @@ const sigilsText = document.getElementById("sigils");
 const crownSigil = document.getElementById("crown-sigil");
 const volumeSlider = document.getElementById("volume-slider");
 
+const riddleModal = document.getElementById("riddle-modal");
+const riddleModalQuestion = document.getElementById("riddle-modal-question");
+const riddleModalStatus = document.getElementById("riddle-modal-status");
+const riddleAnswerInput = document.getElementById("riddle-answer-input");
+
 const codexOverlay = document.getElementById("codex-overlay");
 const codexContent = document.getElementById("codex-content");
 const codexMargin = document.getElementById("codex-margin");
@@ -437,6 +522,7 @@ const consoleInput = document.getElementById("console-input");
 
 let consoleOpen = false;
 let codexOpen = false;
+let riddleModalOpen = false;
 let godMode = false;
 
 let loopFate = JSON.parse(localStorage.getItem("eden_abyss_loop_fate")) || {
@@ -469,6 +555,82 @@ const WISE_TREE_ANSWER_PLAIN = "THE SHEPHERD SLEEPS";
 const WISE_TREE_ANSWER_ENCODED = "VJG UJGRJGTE UNGGVU";
 
 const DEMON_KING_LORE = "Oh, Faker maybe in trouble here! Death Mark... tries to clean it up for Ryu. Oh, look at the cleanse! Look at the moves! FAKER, WHAT WAS THAT?!";
+
+function clearMovementKeys() {
+  for (const k in keys) {
+    keys[k] = false;
+  }
+}
+
+function openRiddleModal() {
+  clearMovementKeys();
+  riddleModalOpen = true;
+  riddleModalQuestion.innerText = `"${WISE_TREE_RIDDLE}"`;
+  riddleAnswerInput.value = "";
+  riddleAnswerInput.style.borderColor = "#5c4033";
+
+  if (badges.cipherDecoded) {
+    riddleModalStatus.innerText = "Already answered: \"THE SHEPHERD SLEEPS\"";
+  } else if (hasUnwoundWiseTreeAnswer()) {
+    riddleModalStatus.innerText = "You have decoded the whisper in the dark.";
+  } else if (recordedWhispers.has(WISE_TREE_ANSWER_ENCODED)) {
+    riddleModalStatus.innerText = "A shifted whisper is recorded in your Codex [C].";
+  } else {
+    riddleModalStatus.innerText = "Listen to the whispers below or speak the plain tongue if you know it.";
+  }
+
+  riddleModal.style.display = "flex";
+  riddleAnswerInput.focus();
+}
+
+function closeRiddleModal() {
+  riddleModalOpen = false;
+  riddleModal.style.display = "none";
+  clearMovementKeys();
+  playerStillTimer = performance.now();
+  if (!consoleOpen && !codexOpen) {
+    canvas.focus();
+  }
+}
+
+function submitRiddleAnswer() {
+  const normalized = normalizePhrase(riddleAnswerInput.value);
+  if (!normalized) return;
+
+  if (normalized === WISE_TREE_ANSWER_PLAIN) {
+    cipherUnwound = true;
+    recordedWhispers.add(WISE_TREE_ANSWER_ENCODED);
+    playTrueEndingSound();
+    unlockBadge("cipherDecoded");
+    loreBox.style.color = "#ffd700";
+    loreBox.style.fontStyle = "normal";
+    setLore("\"THE SHEPHERD SLEEPS... Yes. Without a hand to guide the staff, the pasture repeats its first morning while the Watcher guards an empty fence.\"");
+    riddleModalStatus.style.color = "#ffd700";
+    riddleModalStatus.innerText = "Answered: THE SHEPHERD SLEEPS — Badge unlocked.";
+    riddleAnswerInput.value = "";
+    setTimeout(() => {
+      if (riddleModalOpen) closeRiddleModal();
+    }, 800);
+  } else {
+    riddleModalStatus.style.color = "#ff5252";
+    riddleModalStatus.innerText = "The roots stay quiet. That is not the truth the dark whispers.";
+    riddleAnswerInput.style.borderColor = "#ff1744";
+    setTimeout(() => {
+      riddleAnswerInput.style.borderColor = "#5c4033";
+    }, 450);
+  }
+}
+
+riddleAnswerInput.addEventListener("keydown", (e) => {
+  e.stopPropagation();
+  if (e.key === "Enter") {
+    e.preventDefault();
+    submitRiddleAnswer();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    closeRiddleModal();
+  }
+});
 
 function saveBadges() {
   localStorage.setItem("eden_abyss_badges", JSON.stringify(badges));
@@ -561,7 +723,7 @@ function submitCipherTranslation() {
     cipherUnwound = true;
     playDoorStepSound();
     if (wiseTreeRiddleHeard && hasUnwoundWiseTreeAnswer()) {
-      setLore("The words unwind in your hands. Return to the pale tree on the western path and speak what you found.");
+      setLore("The words unwind in your hands. Return to the tree in the upper grove and speak what you found.");
     }
     buildCodexManuscript();
     renderCodexMargin();
@@ -1100,7 +1262,7 @@ function playDoorStepSound() {
 canvas.focus();
 canvas.addEventListener("click", () => {
   unlockAudio();
-  if (!consoleOpen && !codexOpen) canvas.focus();
+  if (!consoleOpen && !codexOpen && !riddleModalOpen) canvas.focus();
 });
 
 const savedEndings = JSON.parse(localStorage.getItem("eden_abyss_endings")) || {};
@@ -1377,10 +1539,10 @@ const forestTrees = [
   { x: 450, y: 280, width: 45, height: 45, style: "boxy" }
 ];
 
-// The Wise Tree on the western side of Eden (riddle-keeper)
+// The Wise Tree in the upper grove (riddle-keeper, matches other trees, away from spawn)
 const wiseTree = {
-  x: 120,
-  y: 160,
+  x: 245,
+  y: 80,
   width: 45,
   height: 45,
   style: "round"
@@ -1616,13 +1778,13 @@ function buildCodexManuscript() {
   }
 
   if (wiseTreeRiddleHeard || badges.cipherDecoded) {
-    manuscript += "[ THE PALE ROOT'S RIDDLE ]\n";
+    manuscript += "[ THE GROVE'S RIDDLE ]\n";
     manuscript += "  \"" + WISE_TREE_RIDDLE + "\"\n";
     if (badges.cipherDecoded) {
       manuscript += "  --- ANSWERED IN PLAIN TONGUE: \"THE SHEPHERD SLEEPS\" ---\n";
       manuscript += "  'Long ago, the one who planted the pasture laid down the staff and never returned. Without a hand to guide it, the grove kept repeating its first morning, and the Watcher kept guarding a flock that no longer needed a fence.'\n";
     } else if (hasUnwoundWiseTreeAnswer()) {
-      manuscript += "  * [ The unwound truth rests in your hands. Return to the pale tree in Eden's Grove... ] *\n";
+      manuscript += "  * [ The unwound truth rests in your hands. Return to the tree in the upper grove... ] *\n";
     } else {
       manuscript += "  * [ The answer is whispered in the dark below, shifted two steps out of reach... ] *\n";
     }
@@ -1661,6 +1823,8 @@ function toggleCodex() {
   codexOpen = !codexOpen;
   if (codexOpen) {
     if (consoleOpen) toggleConsole();
+    if (riddleModalOpen) closeRiddleModal();
+    clearMovementKeys();
     checkAllBadges();
     buildCodexManuscript();
     applyCodexHarvestTint();
@@ -1868,6 +2032,8 @@ function toggleConsole() {
   consoleOpen = !consoleOpen;
   if (consoleOpen) {
     if (codexOpen) toggleCodex();
+    if (riddleModalOpen) closeRiddleModal();
+    clearMovementKeys();
     consoleOverlay.style.display = "flex";
     consoleInput.focus();
   } else {
@@ -1896,13 +2062,13 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 
-  if (e.key.toLowerCase() === "c" && !consoleOpen && document.activeElement !== codexCipherInput) {
+  if (e.key.toLowerCase() === "c" && !consoleOpen && !riddleModalOpen && document.activeElement !== codexCipherInput) {
     e.preventDefault();
     toggleCodex();
     return;
   }
 
-  if (consoleOpen || codexOpen) return;
+  if (consoleOpen || codexOpen || riddleModalOpen) return;
 
   keys[e.key.toLowerCase()] = true;
   if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(e.key.toLowerCase())) {
@@ -1919,7 +2085,7 @@ window.addEventListener("keydown", (e) => {
 });
 
 window.addEventListener("keyup", (e) => {
-  if (consoleOpen || codexOpen) return;
+  if (consoleOpen || codexOpen || riddleModalOpen) return;
   keys[e.key.toLowerCase()] = false;
 });
 
@@ -2047,15 +2213,10 @@ function triggerUpsideDown(trueMode = false) {
 
 function handleWiseTreeTouch() {
   wiseTreeTouches++;
+  clearMovementKeys();
 
-  const dx = (player.x + player.size / 2) - (wiseTree.x + wiseTree.width / 2);
-  const dy = (player.y + player.size / 2) - (wiseTree.y + wiseTree.height / 2);
-  const dist = Math.hypot(dx, dy) || 1;
-  player.x = Math.max(0, Math.min(canvas.width - player.size, player.x + (dx / dist) * 18));
-  player.y = Math.max(0, Math.min(canvas.height - player.size, player.y + (dy / dist) * 18));
-
-  loreBox.style.color = "#d4e6c3";
-  loreBox.style.fontStyle = "italic";
+  loreBox.style.color = "#e0e0e0";
+  loreBox.style.fontStyle = "normal";
 
   if (badges.cipherDecoded) {
     setLore("\"The shepherd sleeps, and the wheel turns without a hand. You already carry what my roots remembered.\"");
@@ -2078,6 +2239,7 @@ function handleWiseTreeTouch() {
   } else {
     wiseTreeRiddleHeard = true;
     setLore(`"${WISE_TREE_RIDDLE}"`);
+    openRiddleModal();
   }
 }
 
@@ -2106,7 +2268,8 @@ function handleAnomalyTouch() {
 }
 
 function respawnAfterRunEnd() {
-  for (const k in keys) keys[k] = false;
+  clearMovementKeys();
+  if (riddleModalOpen) closeRiddleModal();
 
   isUpsideDown = false;
   isTrueAbyss = false;
@@ -2204,21 +2367,11 @@ function checkCollision(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 }
 
-function drawTree(x, y, style = "round", rot = 0, isWise = false) {
-  ctx.fillStyle = isWise
-    ? lerpColor("#4a3b2c", "#2d251e", rot)
-    : lerpColor("#2e1c0c", "#1a1412", rot);
+function drawTree(x, y, style = "round", rot = 0) {
+  ctx.fillStyle = lerpColor("#2e1c0c", "#1a1412", rot);
   ctx.fillRect(x + 16, y + 22, 13, 20);
 
-  if (isWise) {
-    // Pale knot scar in the trunk of the Wise Tree
-    ctx.fillStyle = badges.cipherDecoded ? "#d4a373" : "#8d7b68";
-    ctx.fillRect(x + 20, y + 28, 4, 6);
-  }
-
-  ctx.fillStyle = isWise
-    ? lerpColor("#3b6e52", "#524c3a", rot)
-    : lerpColor("#1b4d1b", "#3d3324", rot);
+  ctx.fillStyle = lerpColor("#1b4d1b", "#3d3324", rot);
   if (style === "boxy") {
     ctx.fillRect(x + 5, y + 5, 35, 22);
   } else {
@@ -2586,7 +2739,7 @@ function updateEmptySheolCinematic(dt) {
 }
 
 function update(dt) {
-  if (consoleOpen || codexOpen) return;
+  if (consoleOpen || codexOpen || riddleModalOpen) return;
 
   if (!isUpsideDown) {
     updateAmbientSoundscape(0, false, false);
@@ -2721,6 +2874,7 @@ function update(dt) {
 
   if (!isUpsideDown && touchedWiseTreeThisFrame) {
     handleWiseTreeTouch();
+    if (riddleModalOpen) return;
   }
 
   if (!isUpsideDown && touchedAnomalyThisFrame) {
@@ -3043,11 +3197,11 @@ function draw() {
     drawDemonKingSideCallout();
 
     for (const tree of forestTrees) {
-      drawTree(tree.x, tree.y, tree.style, rot, false);
+      drawTree(tree.x, tree.y, tree.style, rot);
     }
 
-    drawTree(wiseTree.x, wiseTree.y, wiseTree.style, rot, true);
-    drawTree(anomaly.x, anomaly.y, anomaly.style, Math.min(1, rot + 0.25), false);
+    drawTree(wiseTree.x, wiseTree.y, wiseTree.style, rot);
+    drawTree(anomaly.x, anomaly.y, anomaly.style, Math.min(1, rot + 0.25));
 
   } else {
     const emptySheol = isEmptySheolActive();
